@@ -275,14 +275,13 @@ jobs:
             pkg install -y ca_root_nss curl node npm pkgconf gtk3 webkit2-gtk_41
           run: |
             set -e
-            export PATH="$HOME/.cargo/bin:$PATH"
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
             . "$HOME/.cargo/env"
             rustup default stable
             npm install --no-audit --no-fund
-            cargo install tauri-cli --locked
-            cargo tauri icon src-tauri/icons/app-icon.svg
-            cargo tauri build --no-bundle
+            npm run build
+            export TAURI_CONFIG='{"bundle":{"icon":[]}}'
+            cargo build --manifest-path src-tauri/Cargo.toml --release
             version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
             mkdir -p "$GITHUB_WORKSPACE/release-assets/freebsd-stage"
             cp src-tauri/target/release/visionweave "$GITHUB_WORKSPACE/release-assets/freebsd-stage/"
@@ -295,7 +294,6 @@ jobs:
           path: release-assets/*
           if-no-files-found: error
           retention-days: 1
-
   publish:
     name: Publish GitHub Release
     needs: [prepare, windows, macos, linux, linux-riscv64, freebsd]
