@@ -15,7 +15,7 @@ impl Default for AppState {
     fn default() -> Self { Self(Mutex::new(EditorState { document: Document::default(), history: History::default(), project_path: None, clipboard: None })) }
 }
 
-fn lock_state(state: &State<'_, AppState>) -> Result<std::sync::MutexGuard<'_, EditorState>, String> {
+fn lock_state(state: &AppState) -> Result<std::sync::MutexGuard<'_, EditorState>, String> {
     state.0.lock().map_err(|_| "The editor state is unavailable.".to_string())
 }
 
