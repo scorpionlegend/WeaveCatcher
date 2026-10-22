@@ -35,15 +35,20 @@ Build each desktop release on its target operating system. Linux builds also dep
 
 ## Download installers
 
-The **Build installers** workflow creates a GitHub Release with these downloads:
+The **Build release downloads** workflow publishes these desktop packages to a GitHub Release:
 
-- **Windows:** setup `.exe` and `.msi` installer.
-- **macOS:** `.dmg` for Apple Silicon and Intel Macs.
-- **Linux:** `.deb` package for x86-64 Debian-based systems.
+- **Windows x86, x64, and ARM64:** setup `.exe`, `.msi`, and portable `.zip`.
+- **macOS:** universal `.dmg` and an archive of the universal `.app` bundle in `.zip` format.
+- **Linux x86-64 and ARM64:** `.AppImage`, `.AppImage.zsync`, `.deb`, `.flatpak`, `.pkg.tar.zst`, `.rpm`, and `.tar.gz`.
+- **Linux RISC-V 64:** `.deb`, `.rpm`, and `.tar.gz`.
+- **FreeBSD x86-64:** `.tar.gz`.
+- **Checksums:** `SHA256SUMS.txt` covers the attached release downloads. GitHub also creates source-code `.zip` and `.tar.gz` archives for each release.
 
-To publish a release, open the repository's **Actions** tab, select **Build installers**, and choose **Run workflow**. It builds the version in `src-tauri/tauri.conf.json` and publishes the installers to a release named `visionweave-v<version>`. Pushing a tag beginning with `visionweave-v` also starts a build. Bump the app version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `package.json` before publishing an updated version.
+The Mac `.zip` contains the app bundle; this version does not include a separate command-line executable. The browser edition is not part of the desktop release. Website projects created in VisionWeave can still be exported from the application.
 
-The installers are not code-signed. Windows may show a SmartScreen prompt, and macOS may require approval in Privacy & Security the first time the app is opened.
+To publish a release, open the repository's **Actions** tab, select **Build release downloads**, and choose **Run workflow**. It builds the version in `src-tauri/tauri.conf.json` and publishes it as `visionweave-v<version>`. Pushing a tag beginning with `visionweave-v` also starts a build. Bump the app version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `package.json` before publishing an updated version.
+
+Installers are not code-signed. Windows may show a SmartScreen prompt, and macOS may require approval in Privacy & Security the first time the app is opened. The Windows portable ZIP uses the WebView2 runtime provided by current Windows 10 and Windows 11 installations.
 
 ## Editor overview
 
