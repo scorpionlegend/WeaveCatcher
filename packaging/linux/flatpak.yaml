@@ -1,0 +1,43 @@
+app-id: com.visionweave.editor
+runtime: org.gnome.Platform
+runtime-version: '49'
+sdk: org.gnome.Sdk
+command: visionweave
+
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --share=ipc
+  - --filesystem=home
+  - --talk-name=org.freedesktop.portal.Desktop
+
+modules:
+  - name: visionweave
+    buildsystem: simple
+    sources:
+      - type: file
+        path: VisionWeave.deb
+    build-commands:
+      - |
+        set -eu
+        mkdir -p deb-extract
+        (cd deb-extract && ar x ../VisionWeave.deb)
+        data_tar="$(find deb-extract -maxdepth 1 -name 'data.tar.*' -print -quit)"
+        test -n "$data_tar"
+        tar -xf "$data_tar" -C deb-extract
+        install -Dm755 deb-extract/usr/bin/visionweave /app/bin/visionweave
+        if [ -d deb-extract/usr/lib/visionweave ]; then
+          mkdir -p /app/lib/visionweave
+          cp -a deb-extract/usr/lib/visionweave/. /app/lib/visionweave/
+        fi
+        desktop_file="$(find deb-extract/usr/share/applications -maxdepth 1 -name '*.desktop' -print -quit)"
+        test -n "$desktop_file"
+        install -Dm644 "$desktop_file" /app/share/applications/com.visionweave.editor.desktop
+        sed -i 's/^Exec=.*/Exec=visionweave/' /app/share/applications/com.visionweave.editor.desktop
+        sed -i 's/^Icon=.*/Icon=com.visionweave.editor/' /app/share/applications/com.visionweave.editor.desktop
+        for icon in deb-extract/usr/share/icons/hicolor/*/apps/*.png; do
+          [ -f "$icon" ] || continue
+          size="$(basename "$(dirname "$(dirname "$icon")")")"
+          install -Dm644 "$icon" "/app/share/icons/hicolor/$size/apps/com.visionweave.editor.png"
+        done
