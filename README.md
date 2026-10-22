@@ -33,6 +33,18 @@ npm run build
 
 Build each desktop release on its target operating system. Linux builds also depend on the distribution's installed WebKitGTK libraries.
 
+## Download installers
+
+The **Build installers** workflow creates a GitHub Release with these downloads:
+
+- **Windows:** setup `.exe` and `.msi` installer.
+- **macOS:** `.dmg` for Apple Silicon and Intel Macs.
+- **Linux:** `.deb` package for x86-64 Debian-based systems.
+
+To publish a release, open the repository's **Actions** tab, select **Build installers**, and choose **Run workflow**. It builds the version in `src-tauri/tauri.conf.json` and publishes the installers to a release named `visionweave-v<version>`. Pushing a tag beginning with `visionweave-v` also starts a build. Bump the app version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `package.json` before publishing an updated version.
+
+The installers are not code-signed. Windows may show a SmartScreen prompt, and macOS may require approval in Privacy & Security the first time the app is opened.
+
 ## Editor overview
 
 - Add sections, containers, headings, paragraphs, images, buttons, links, lists, forms, inputs, dividers, spacers, and modal elements from the palette.

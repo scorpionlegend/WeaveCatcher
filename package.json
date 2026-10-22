@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
-    "tauri": "tauri"
+    "tauri:dev": "tauri icon src-tauri/icons/app-icon.svg && tauri dev",
+    "tauri:build": "tauri icon src-tauri/icons/app-icon.svg && tauri build",
+    "tauri": "tauri icon src-tauri/icons/app-icon.svg && tauri"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

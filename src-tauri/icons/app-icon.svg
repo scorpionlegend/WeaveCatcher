@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="background" x1="48" y1="32" x2="470" y2="488" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#20204d"/>
+      <stop offset="1" stop-color="#101426"/>
+    </linearGradient>
+    <linearGradient id="mint" x1="111" y1="153" x2="366" y2="360" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#74f2cf"/>
+      <stop offset="1" stop-color="#51b9f5"/>
+    </linearGradient>
+    <linearGradient id="violet" x1="170" y1="359" x2="410" y2="147" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9c8bff"/>
+      <stop offset="1" stop-color="#ff91c8"/>
+    </linearGradient>
+  </defs>
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="url(#background)"/>
+  <path d="M117 197 204 110l190 190-87 87-190-190Z" fill="none" stroke="url(#mint)" stroke-linecap="round" stroke-linejoin="round" stroke-width="34"/>
+  <path d="m395 197-87-87-190 190 87 87 190-190Z" fill="none" stroke="url(#violet)" stroke-linecap="round" stroke-linejoin="round" stroke-width="34"/>
+  <circle cx="256" cy="256" r="27" fill="#fff"/>
+  <circle cx="256" cy="256" r="11" fill="#20204d"/>
+</svg>
