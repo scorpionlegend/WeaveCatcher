@@ -113,7 +113,7 @@ fn update_element(document: &mut Document, id: &str, update: impl FnOnce(&mut El
     Ok(())
 }
 
-pub fn find_element(elements: &[Element], id: &str) -> Option<&Element> {
+pub fn find_element<'a>(elements: &'a [Element], id: &str) -> Option<&'a Element> {
     for element in elements {
         if element.id == id { return Some(element); }
         if let Some(found) = find_element(&element.children, id) { return Some(found); }
@@ -121,7 +121,7 @@ pub fn find_element(elements: &[Element], id: &str) -> Option<&Element> {
     None
 }
 
-fn find_element_mut(elements: &mut [Element], id: &str) -> Option<&mut Element> {
+fn find_element_mut<'a>(elements: &'a mut [Element], id: &str) -> Option<&'a mut Element> {
     for element in elements {
         if element.id == id { return Some(element); }
         if let Some(found) = find_element_mut(&mut element.children, id) { return Some(found); }
