@@ -1,4 +1,4 @@
-name: Build installers
+name: Build release downloads
 
 on:
   workflow_dispatch:
@@ -10,73 +10,328 @@ permissions:
   contents: write
 
 concurrency:
-  group: installers-${{ github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build (${{ matrix.label }})
+  prepare:
+    name: Read release version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  windows:
+    name: Windows ${{ matrix.arch }} installers
+    needs: prepare
+    runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - label: Windows x64
-            platform: windows-latest
-            rust_targets: ""
-            args: "--bundles nsis,msi"
-          - label: Linux x64
-            platform: ubuntu-22.04
-            rust_targets: ""
-            args: "--bundles deb"
-          - label: macOS Apple Silicon
-            platform: macos-latest
-            rust_targets: aarch64-apple-darwin
-            args: "--target aarch64-apple-darwin --bundles dmg"
-          - label: macOS Intel
-            platform: macos-latest
-            rust_targets: x86_64-apple-darwin
-            args: "--target x86_64-apple-darwin --bundles dmg"
-
-    runs-on: ${{ matrix.platform }}
+          - target: x86_64-pc-windows-msvc
+            arch: x64
+          - target: aarch64-pc-windows-msvc
+            arch: arm64
+          - target: i686-pc-windows-msvc
+            arch: x86
     steps:
-      - name: Check out source
-        uses: actions/checkout@v7
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.rust_targets }}
-
-      - name: Cache Rust build files
-        uses: swatinem/rust-cache@v2
-
-      - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
-
+          targets: ${{ matrix.target }}
+      - uses: swatinem/rust-cache@v2
       - name: Install frontend dependencies
         run: npm install --no-audit --no-fund
+      - name: Build installers
+        run: npm run tauri -- build --target ${{ matrix.target }} --bundles nsis,msi
+      - name: Package Windows downloads
+        shell: pwsh
+        run: |
+          $version = node -p "require('./src-tauri/tauri.conf.json').version"
+          $assets = Join-Path $PWD "release-assets"
+          New-Item -ItemType Directory -Force -Path $assets | Out-Null
+          $bundle = Join-Path $PWD "src-tauri/target/${{ matrix.target }}/release/bundle"
+          $setup = Get-ChildItem -LiteralPath (Join-Path $bundle "nsis") -Filter "*.exe" -File | Select-Object -First 1
+          $msi = Get-ChildItem -LiteralPath (Join-Path $bundle "msi") -Filter "*.msi" -File | Select-Object -First 1
+          if (-not $setup -or -not $msi) { throw "Expected NSIS and MSI installers were not produced." }
+          Copy-Item -LiteralPath $setup.FullName -Destination (Join-Path $assets "VisionWeave-v$version-windows-${{ matrix.arch }}-setup.exe")
+          Copy-Item -LiteralPath $msi.FullName -Destination (Join-Path $assets "VisionWeave-v$version-windows-${{ matrix.arch }}.msi")
 
-      - name: Build installers and publish release
-        uses: tauri-apps/tauri-action@v1.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          $binary = Join-Path $PWD "src-tauri/target/${{ matrix.target }}/release/visionweave.exe"
+          if (-not (Test-Path -LiteralPath $binary)) { throw "Expected application executable was not produced: $binary" }
+          $portable = Join-Path $env:RUNNER_TEMP "VisionWeave-portable"
+          New-Item -ItemType Directory -Force -Path $portable | Out-Null
+          Copy-Item -LiteralPath $binary -Destination (Join-Path $portable "VisionWeave.exe")
+          @"
+          Run VisionWeave.exe to start the application. Windows 10 and 11 include the Microsoft WebView2 runtime used by VisionWeave.
+          "@ | Set-Content -Encoding UTF8 (Join-Path $portable "README.txt")
+          Compress-Archive -Path (Join-Path $portable "*") -DestinationPath (Join-Path $assets "VisionWeave-v$version-windows-${{ matrix.arch }}-portable.zip") -Force
+      - uses: actions/upload-artifact@v4
         with:
-          tauriScript: npm run tauri
-          args: ${{ matrix.args }}
-          tagName: visionweave-v__VERSION__
-          releaseName: VisionWeave v__VERSION__
-          releaseBody: |
-            Download the installer for your operating system:
-            - Windows: setup `.exe` or `.msi` (x64)
-            - macOS: `.dmg` (Apple Silicon or Intel)
-            - Linux: `.deb` (x64 Debian-based distributions)
-          releaseDraft: false
+          name: windows-${{ matrix.arch }}
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 1
+
+  macos:
+    name: macOS universal app
+    needs: prepare
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: swatinem/rust-cache@v2
+      - name: Install frontend dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build universal DMG
+        run: npm run tauri -- build --target universal-apple-darwin --bundles dmg
+      - name: Package macOS downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          assets="$GITHUB_WORKSPACE/release-assets"
+          mkdir -p "$assets"
+          dmg="$(find src-tauri/target/universal-apple-darwin/release/bundle/dmg -maxdepth 1 -name '*.dmg' -print -quit)"
+          app="$(find src-tauri/target/universal-apple-darwin/release/bundle/macos -maxdepth 1 -name '*.app' -print -quit)"
+          test -n "$dmg" && test -n "$app"
+          cp "$dmg" "$assets/VisionWeave-v${version}-macos-universal.dmg"
+          ditto -c -k --sequesterRsrc --keepParent "$app" "$assets/VisionWeave-v${version}-macos-universal-app.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-universal
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 1
+
+  linux:
+    name: Linux ${{ matrix.arch }} packages
+    needs: prepare
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            arch: x86_64
+          - runner: ubuntu-22.04-arm
+            arch: aarch64
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+      - name: Install Linux packaging tools and Tauri dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl wget file libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf rpm zsync flatpak flatpak-builder libarchive-tools zstd
+      - name: Install frontend dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build Linux packages
+        run: npm run tauri -- build --bundles appimage,deb,rpm
+      - name: Create AppImage archives and secondary packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          arch="${{ matrix.arch }}"
+          assets="$GITHUB_WORKSPACE/release-assets"
+          work="$(mktemp -d)"
+          mkdir -p "$assets"
+          appimage="$(find src-tauri/target -path '*/bundle/appimage/*.AppImage' -type f -print -quit)"
+          deb="$(find src-tauri/target -path '*/bundle/deb/*.deb' -type f -print -quit)"
+          rpm="$(find src-tauri/target -path '*/bundle/rpm/*.rpm' -type f -print -quit)"
+          test -n "$appimage" && test -n "$deb" && test -n "$rpm"
+          appimage_name="VisionWeave-v${version}-linux-${arch}.AppImage"
+          deb_name="VisionWeave-v${version}-linux-${arch}.deb"
+          cp "$appimage" "$assets/$appimage_name"
+          cp "$deb" "$assets/$deb_name"
+          cp "$rpm" "$assets/VisionWeave-v${version}-linux-${arch}.rpm"
+
+          "$appimage" --appimage-extract >/dev/null
+          tar -C squashfs-root -czf "$assets/VisionWeave-v${version}-linux-${arch}.tar.gz" .
+          rm -rf squashfs-root
+
+          release_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/visionweave-v${version}/${appimage_name}"
+          zsyncmake -u "$release_url" -o "$assets/${appimage_name}.zsync" "$assets/$appimage_name"
+
+          mkdir -p "$work/deb" "$work/arch-root"
+          (cd "$work/deb" && ar x "$GITHUB_WORKSPACE/$deb")
+          data_tar="$(find "$work/deb" -maxdepth 1 -name 'data.tar.*' -print -quit)"
+          tar -xf "$data_tar" -C "$work/arch-root"
+          builddate="$(date +%s)"
+          installed_size="$(du -sb "$work/arch-root" | cut -f1)"
+          cat > "$work/arch-root/.PKGINFO" <<EOF
+          pkgname = visionweave-bin
+          pkgbase = visionweave-bin
+          pkgver = ${version}-1
+          pkgdesc = Visual website editor desktop application
+          url = https://github.com/scorpionlegend/VisionWeave
+          builddate = ${builddate}
+          packager = VisionWeave release workflow
+          size = ${installed_size}
+          arch = ${arch}
+          depend = gtk3
+          depend = webkit2gtk-4.1
+          depend = libsoup3
+          EOF
+          tar --sort=name --mtime="@${builddate}" --owner=0 --group=0 --numeric-owner -C "$work/arch-root" -cf - . | zstd -T0 -19 -o "$assets/VisionWeave-v${version}-linux-${arch}.pkg.tar.zst"
+
+          flatpak_dir="$work/flatpak"
+          mkdir -p "$flatpak_dir"
+          cp packaging/linux/flatpak.yaml "$flatpak_dir/flatpak.yaml"
+          cp "$deb" "$flatpak_dir/VisionWeave.deb"
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user --noninteractive -y flathub org.gnome.Platform//49 org.gnome.Sdk//49
+          flatpak-builder --force-clean --user --disable-cache --repo="$flatpak_dir/repo" "$flatpak_dir/build" "$flatpak_dir/flatpak.yaml"
+          flatpak build-bundle "$flatpak_dir/repo" "$assets/VisionWeave-v${version}-linux-${arch}.flatpak" com.visionweave.editor stable --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo
+          rm -rf "$work"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 1
+
+  linux-riscv64:
+    name: Linux riscv64 packages (QEMU)
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prepare release-assets folder
+        run: mkdir -p "$GITHUB_WORKSPACE/release-assets"
+      - name: Build RISC-V packages under emulation
+        uses: uraimo/run-on-arch-action@v3
+        with:
+          arch: riscv64
+          distro: ubuntu24.04
+          dockerRunArgs: --volume "${{ github.workspace }}/release-assets:/artifacts"
+          install: |
+            apt-get update
+            DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl nodejs npm build-essential pkg-config libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev rpm
+          run: |
+            set -euo pipefail
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+            export PATH="$HOME/.cargo/bin:$PATH"
+            rustup default stable
+            npm install --no-audit --no-fund
+            cargo install tauri-cli --locked
+            cargo tauri icon src-tauri/icons/app-icon.svg
+            cargo tauri build --bundles deb,rpm
+            version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+            deb="$(find src-tauri/target -path '*/bundle/deb/*.deb' -type f -print -quit)"
+            rpm="$(find src-tauri/target -path '*/bundle/rpm/*.rpm' -type f -print -quit)"
+            test -n "$deb" && test -n "$rpm"
+            cp "$deb" "/artifacts/VisionWeave-v${version}-linux-riscv64.deb"
+            cp "$rpm" "/artifacts/VisionWeave-v${version}-linux-riscv64.rpm"
+            mkdir -p /tmp/visionweave-root /tmp/visionweave-deb
+            (cd /tmp/visionweave-deb && ar x "$GITHUB_WORKSPACE/$deb")
+            data_tar="$(find /tmp/visionweave-deb -maxdepth 1 -name 'data.tar.*' -print -quit)"
+            tar -xf "$data_tar" -C /tmp/visionweave-root
+            tar -C /tmp/visionweave-root -czf "/artifacts/VisionWeave-v${version}-linux-riscv64.tar.gz" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-riscv64
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 1
+
+  freebsd:
+    name: FreeBSD x86_64 tarball
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build on FreeBSD
+        uses: vmactions/freebsd-vm@v1
+        with:
+          usesh: true
+          mem: 8192
+          prepare: |
+            pkg install -y ca_root_nss curl node npm pkgconf gtk3 webkit2-gtk
+          run: |
+            set -e
+            export PATH="$HOME/.cargo/bin:$PATH"
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+            . "$HOME/.cargo/env"
+            rustup default stable
+            npm install --no-audit --no-fund
+            cargo install tauri-cli --locked
+            cargo tauri icon src-tauri/icons/app-icon.svg
+            cargo tauri build --no-bundle
+            version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+            mkdir -p "$GITHUB_WORKSPACE/release-assets/freebsd-stage"
+            cp src-tauri/target/release/visionweave "$GITHUB_WORKSPACE/release-assets/freebsd-stage/"
+            cp README.md "$GITHUB_WORKSPACE/release-assets/freebsd-stage/"
+            tar -C "$GITHUB_WORKSPACE/release-assets/freebsd-stage" -czf "$GITHUB_WORKSPACE/release-assets/VisionWeave-v${version}-freebsd-x86_64.tar.gz" .
+            rm -rf "$GITHUB_WORKSPACE/release-assets/freebsd-stage"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: freebsd-x86_64
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish GitHub Release
+    needs: [prepare, windows, macos, linux, linux-riscv64, freebsd]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Create checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-assets
+          find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -printf '%f\n' | sort | while read -r file; do sha256sum "$file"; done > SHA256SUMS.txt
+      - name: Publish release and assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('visionweave-v{0}', needs.prepare.outputs.version) }}
+          name: VisionWeave v${{ needs.prepare.outputs.version }}
+          body: |
+            ## Downloads
+
+            - **Windows:** setup `.exe`, `.msi`, and portable `.zip` for x86, x64, and ARM64.
+            - **macOS:** universal `.dmg` installer and `.app.zip` archive for Apple Silicon and Intel.
+            - **Linux x86_64 and AArch64:** `.AppImage`, `.AppImage.zsync`, `.deb`, `.flatpak`, `.pkg.tar.zst`, `.rpm`, and `.tar.gz`.
+            - **Linux RISC-V 64:** `.deb`, `.rpm`, and `.tar.gz`.
+            - **FreeBSD x86_64:** `.tar.gz`.
+
+            `SHA256SUMS.txt` contains checksums for the attached files. GitHub also provides source code `.zip` and `.tar.gz` archives below.
+
+            The Mac ZIP contains the app bundle; VisionWeave does not currently ship a separate command-line executable. The browser edition is not included in this desktop release.
+
+            Installers are not code-signed. Windows may show a SmartScreen prompt, and macOS may require approval in Privacy & Security the first time the app is opened.
+          files: release-assets/*
+          fail_on_unmatched_files: true
+          draft: false
           prerelease: false
