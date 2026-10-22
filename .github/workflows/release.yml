@@ -103,7 +103,7 @@ jobs:
       - name: Install frontend dependencies
         run: npm install --no-audit --no-fund
       - name: Build universal DMG
-        run: npm run tauri -- build --target universal-apple-darwin --bundles dmg
+        run: npm run tauri -- build --target universal-apple-darwin --bundles app,dmg
       - name: Package macOS downloads
         shell: bash
         run: |
