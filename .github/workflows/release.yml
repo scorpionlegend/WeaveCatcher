@@ -272,7 +272,7 @@ jobs:
           usesh: true
           mem: 8192
           prepare: |
-            pkg install -y ca_root_nss curl node npm pkgconf gtk3 webkit2-gtk
+            pkg install -y ca_root_nss curl node npm pkgconf gtk3 webkit2-gtk_41
           run: |
             set -e
             export PATH="$HOME/.cargo/bin:$PATH"
