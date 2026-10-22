@@ -123,7 +123,7 @@ fn emit_js_refs(elements: &[&Element]) -> String {
 
 fn emit_js_tree(elements: &[&Element], output: &mut String) {
     for element in elements {
-        emit_behaviors(&element.behaviors, &element.id, &mut output);
+        emit_behaviors(&element.behaviors, &element.id, output);
         let children: Vec<&Element> = element.children.iter().collect();
         emit_js_tree(&children, output);
     }
