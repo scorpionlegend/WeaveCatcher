@@ -3,12 +3,8 @@ name: Build release downloads
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
     tags:
       - "weavecatcher-v*"
-    paths:
-      - ".github/release-trigger.txt"
 
 permissions:
   contents: write
