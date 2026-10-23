@@ -259,44 +259,9 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  freebsd:
-    name: FreeBSD x86_64 tarball
-    needs: prepare
-    runs-on: ubuntu-24.04
-    timeout-minutes: 360
-    steps:
-      - uses: actions/checkout@v7
-      - name: Build on FreeBSD
-        uses: vmactions/freebsd-vm@v1
-        with:
-          usesh: true
-          mem: 8192
-          prepare: |
-            pkg install -y ca_root_nss curl node npm pkgconf gtk3 webkit2-gtk_41
-          run: |
-            set -e
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-            . "$HOME/.cargo/env"
-            rustup default stable
-            npm install --no-audit --no-fund
-            npm run build
-            export TAURI_CONFIG='{"bundle":{"icon":[]}}'
-            cargo build --manifest-path src-tauri/Cargo.toml --release
-            version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
-            mkdir -p "$GITHUB_WORKSPACE/release-assets/freebsd-stage"
-            cp src-tauri/target/release/weavecatcher "$GITHUB_WORKSPACE/release-assets/freebsd-stage/"
-            cp README.md "$GITHUB_WORKSPACE/release-assets/freebsd-stage/"
-            tar -C "$GITHUB_WORKSPACE/release-assets/freebsd-stage" -czf "$GITHUB_WORKSPACE/release-assets/WeaveCatcher-v${version}-freebsd-x86_64.tar.gz" .
-            rm -rf "$GITHUB_WORKSPACE/release-assets/freebsd-stage"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: freebsd-x86_64
-          path: release-assets/*
-          if-no-files-found: error
-          retention-days: 1
   publish:
     name: Publish GitHub Release
-    needs: [prepare, windows, macos, linux, linux-riscv64, freebsd]
+    needs: [prepare, windows, macos, linux, linux-riscv64]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -322,7 +287,6 @@ jobs:
             - **macOS:** universal `.dmg` installer and `.app.zip` archive for Apple Silicon and Intel.
             - **Linux x86_64 and AArch64:** `.AppImage`, `.AppImage.zsync`, `.deb`, `.flatpak`, `.pkg.tar.zst`, `.rpm`, and `.tar.gz`.
             - **Linux RISC-V 64:** `.deb`, `.rpm`, and `.tar.gz`.
-            - **FreeBSD x86_64:** `.tar.gz`.
 
             `SHA256SUMS.txt` contains checksums for the attached files. GitHub also provides source code `.zip` and `.tar.gz` archives below.
 
