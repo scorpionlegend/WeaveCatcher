@@ -1,6 +1,6 @@
-# VisionWeave
+# WeaveCatcher
 
-VisionWeave is a cross-platform desktop website editor built with Tauri 2, Rust, TypeScript, and Preact. It renders page elements in the webview and keeps the editable project document in the Rust process.
+WeaveCatcher is a cross-platform desktop website editor built with Tauri 2, Rust, TypeScript, and Preact. It renders page elements in the webview and keeps the editable project document in the Rust process.
 
 ## Prerequisites
 
@@ -44,9 +44,9 @@ The **Build release downloads** workflow publishes these desktop packages to a G
 - **FreeBSD x86-64:** `.tar.gz`.
 - **Checksums:** `SHA256SUMS.txt` covers the attached release downloads. GitHub also creates source-code `.zip` and `.tar.gz` archives for each release.
 
-The Mac `.zip` contains the app bundle; this version does not include a separate command-line executable. The browser edition is not part of the desktop release. Website projects created in VisionWeave can still be exported from the application.
+The Mac `.zip` contains the app bundle; this version does not include a separate command-line executable. The browser edition is not part of the desktop release. Website projects created in WeaveCatcher can still be exported from the application.
 
-To publish a release, open the repository's **Actions** tab, select **Build release downloads**, and choose **Run workflow**. It builds the version in `src-tauri/tauri.conf.json` and publishes it as `visionweave-v<version>`. Pushing a tag beginning with `visionweave-v` also starts a build. Bump the app version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `package.json` before publishing an updated version.
+To publish a release, open the repository's **Actions** tab, select **Build release downloads**, and choose **Run workflow**. It builds the version in `src-tauri/tauri.conf.json` and publishes it as `weavecatcher-v<version>`. Pushing a tag beginning with `weavecatcher-v` also starts a build. Bump the app version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `package.json` before publishing an updated version.
 
 Installers are not code-signed. Windows may show a SmartScreen prompt, and macOS may require approval in Privacy & Security the first time the app is opened. The Windows portable ZIP uses the WebView2 runtime provided by current Windows 10 and Windows 11 installations.
 
