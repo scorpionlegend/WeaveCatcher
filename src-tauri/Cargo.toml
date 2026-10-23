@@ -1,12 +1,12 @@
 [package]
-name = "visionweave"
+name = "weavecatcher"
 version = "0.1.0"
 description = "A visual website builder for desktop"
-authors = ["VisionWeave contributors"]
+authors = ["WeaveCatcher contributors"]
 edition = "2021"
 
 [lib]
-name = "visionweave_lib"
+name = "weavecatcher_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
