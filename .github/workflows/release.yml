@@ -214,54 +214,9 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  linux-riscv64:
-    name: Linux riscv64 packages (QEMU)
-    needs: prepare
-    runs-on: ubuntu-24.04
-    timeout-minutes: 360
-    steps:
-      - uses: actions/checkout@v7
-      - name: Prepare release-assets folder
-        run: mkdir -p "$GITHUB_WORKSPACE/release-assets"
-      - name: Build RISC-V packages under emulation
-        uses: uraimo/run-on-arch-action@v3
-        with:
-          arch: riscv64
-          distro: ubuntu24.04
-          dockerRunArgs: --volume "${{ github.workspace }}/release-assets:/artifacts"
-          install: |
-            apt-get update
-            DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl nodejs npm build-essential pkg-config libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev rpm
-          run: |
-            set -euo pipefail
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-            export PATH="$HOME/.cargo/bin:$PATH"
-            rustup default stable
-            npm install --no-audit --no-fund
-            cargo install tauri-cli --locked
-            cargo tauri icon src-tauri/icons/app-icon.svg
-            cargo tauri build --bundles deb,rpm
-            version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
-            deb="$(find src-tauri/target -path '*/bundle/deb/*.deb' -type f -print -quit)"
-            rpm="$(find src-tauri/target -path '*/bundle/rpm/*.rpm' -type f -print -quit)"
-            test -n "$deb" && test -n "$rpm"
-            cp "$deb" "/artifacts/WeaveCatcher-v${version}-linux-riscv64.deb"
-            cp "$rpm" "/artifacts/WeaveCatcher-v${version}-linux-riscv64.rpm"
-            mkdir -p /tmp/weavecatcher-root /tmp/weavecatcher-deb
-            (cd /tmp/weavecatcher-deb && ar x "$GITHUB_WORKSPACE/$deb")
-            data_tar="$(find /tmp/weavecatcher-deb -maxdepth 1 -name 'data.tar.*' -print -quit)"
-            tar -xf "$data_tar" -C /tmp/weavecatcher-root
-            tar -C /tmp/weavecatcher-root -czf "/artifacts/WeaveCatcher-v${version}-linux-riscv64.tar.gz" .
-      - uses: actions/upload-artifact@v4
-        with:
-          name: linux-riscv64
-          path: release-assets/*
-          if-no-files-found: error
-          retention-days: 1
-
   publish:
     name: Publish GitHub Release
-    needs: [prepare, windows, macos, linux, linux-riscv64]
+    needs: [prepare, windows, macos, linux]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -286,7 +241,6 @@ jobs:
             - **Windows:** setup `.exe`, `.msi`, and portable `.zip` for x86, x64, and ARM64.
             - **macOS:** universal `.dmg` installer and `.app.zip` archive for Apple Silicon and Intel.
             - **Linux x86_64 and AArch64:** `.AppImage`, `.AppImage.zsync`, `.deb`, `.flatpak`, `.pkg.tar.zst`, `.rpm`, and `.tar.gz`.
-            - **Linux RISC-V 64:** `.deb`, `.rpm`, and `.tar.gz`.
 
             `SHA256SUMS.txt` contains checksums for the attached files. GitHub also provides source code `.zip` and `.tar.gz` archives below.
 
