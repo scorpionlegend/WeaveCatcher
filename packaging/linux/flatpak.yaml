@@ -1,9 +1,9 @@
-app-id: com.visionweave.editor
+app-id: com.weavecatcher.editor
 default-branch: stable
 runtime: org.gnome.Platform
 runtime-version: '49'
 sdk: org.gnome.Sdk
-command: visionweave
+command: weavecatcher
 
 finish-args:
   - --socket=wayland
@@ -14,31 +14,31 @@ finish-args:
   - --talk-name=org.freedesktop.portal.Desktop
 
 modules:
-  - name: visionweave
+  - name: weavecatcher
     buildsystem: simple
     sources:
       - type: file
-        path: VisionWeave.deb
+        path: WeaveCatcher.deb
     build-commands:
       - |
         set -eu
         mkdir -p deb-extract
-        (cd deb-extract && ar x ../VisionWeave.deb)
+        (cd deb-extract && ar x ../WeaveCatcher.deb)
         data_tar="$(find deb-extract -maxdepth 1 -name 'data.tar.*' -print -quit)"
         test -n "$data_tar"
         tar -xf "$data_tar" -C deb-extract
-        install -Dm755 deb-extract/usr/bin/visionweave /app/bin/visionweave
-        if [ -d deb-extract/usr/lib/visionweave ]; then
-          mkdir -p /app/lib/visionweave
-          cp -a deb-extract/usr/lib/visionweave/. /app/lib/visionweave/
+        install -Dm755 deb-extract/usr/bin/weavecatcher /app/bin/weavecatcher
+        if [ -d deb-extract/usr/lib/weavecatcher ]; then
+          mkdir -p /app/lib/weavecatcher
+          cp -a deb-extract/usr/lib/weavecatcher/. /app/lib/weavecatcher/
         fi
         desktop_file="$(find deb-extract/usr/share/applications -maxdepth 1 -name '*.desktop' -print -quit)"
         test -n "$desktop_file"
-        install -Dm644 "$desktop_file" /app/share/applications/com.visionweave.editor.desktop
-        sed -i 's/^Exec=.*/Exec=visionweave/' /app/share/applications/com.visionweave.editor.desktop
-        sed -i 's/^Icon=.*/Icon=com.visionweave.editor/' /app/share/applications/com.visionweave.editor.desktop
+        install -Dm644 "$desktop_file" /app/share/applications/com.weavecatcher.editor.desktop
+        sed -i 's/^Exec=.*/Exec=weavecatcher/' /app/share/applications/com.weavecatcher.editor.desktop
+        sed -i 's/^Icon=.*/Icon=com.weavecatcher.editor/' /app/share/applications/com.weavecatcher.editor.desktop
         for icon in deb-extract/usr/share/icons/hicolor/*/apps/*.png; do
           [ -f "$icon" ] || continue
           size="$(basename "$(dirname "$(dirname "$icon")")")"
-          install -Dm644 "$icon" "/app/share/icons/hicolor/$size/apps/com.visionweave.editor.png"
+          install -Dm644 "$icon" "/app/share/icons/hicolor/$size/apps/com.weavecatcher.editor.png"
         done
