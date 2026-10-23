@@ -40,7 +40,6 @@ The **Build release downloads** workflow publishes these desktop packages to a G
 - **Windows x86, x64, and ARM64:** setup `.exe`, `.msi`, and portable `.zip`.
 - **macOS:** universal `.dmg` and an archive of the universal `.app` bundle in `.zip` format.
 - **Linux x86-64 and ARM64:** `.AppImage`, `.AppImage.zsync`, `.deb`, `.flatpak`, `.pkg.tar.zst`, `.rpm`, and `.tar.gz`.
-- **Linux RISC-V 64:** `.deb`, `.rpm`, and `.tar.gz`.
   FreeBSD packages are not included because Tauri's windowing backend does not support that target.
 - **Checksums:** `SHA256SUMS.txt` covers the attached release downloads. GitHub also creates source-code `.zip` and `.tar.gz` archives for each release.
 
