@@ -69,7 +69,7 @@ function App() {
         const next = await invoke<DocumentModel>("mutate_document", { intent: { type: "set_layout", layout: preferred } });
         if (mounted) setDocumentModel(next);
       }
-    }).catch((cause: unknown) => { if (mounted) setError(`Open VisionWeave in its desktop window to connect to the Rust editor. ${String(cause)}`); });
+    }).catch((cause: unknown) => { if (mounted) setError(`Open WeaveCatcher in its desktop window to connect to the Rust editor. ${String(cause)}`); });
     return () => { mounted = false; };
   }, []);
 
@@ -146,7 +146,7 @@ function App() {
 
   async function openProject() {
     try {
-      const path = await open({ multiple: false, filters: [{ name: "VisionWeave project", extensions: ["visionweave.json", "json"] }] });
+      const path = await open({ multiple: false, filters: [{ name: "WeaveCatcher project", extensions: ["weavecatcher.json", "visionweave.json", "json"] }] });
       if (typeof path !== "string") return;
       let next = await invoke<DocumentModel>("load_project", { path });
       const preferred = localStorage.getItem("visionweave-layout");
@@ -160,7 +160,7 @@ function App() {
     try {
       let path: string | undefined;
       if (saveAs) {
-        const picked = await save({ defaultPath: `${documentModel?.name ?? "Untitled website"}.visionweave.json`, filters: [{ name: "VisionWeave project", extensions: ["json"] }] });
+        const picked = await save({ defaultPath: `${documentModel?.name ?? "Untitled website"}.weavecatcher.json`, filters: [{ name: "WeaveCatcher project", extensions: ["json"] }] });
         if (!picked) return;
         path = picked;
       }
@@ -237,7 +237,7 @@ function App() {
     }
   }
 
-  if (!documentModel) return <main class="loading-screen"><div class="brand-mark">vw</div><strong>VisionWeave</strong><span>{error || "Connecting to the editor…"}</span></main>;
+  if (!documentModel) return <main class="loading-screen"><div class="brand-mark">wc</div><strong>WeaveCatcher</strong><span>{error || "Connecting to the editor…"}</span></main>;
 
   const elements = page?.elements ?? [];
   const elementCount = page ? allElements(page.elements).length : 0;
@@ -249,7 +249,7 @@ function App() {
 
   return <div class={`app-shell ${documentModel.settings.layout}`}>
     <header class="topbar">
-      <div class="brand-lockup"><div class="brand-mark">vw</div><span>VisionWeave</span><i class="brand-divider" /></div>
+      <div class="brand-lockup"><div class="brand-mark">wc</div><span>WeaveCatcher</span><i class="brand-divider" /></div>
       {documentModel.settings.layout === "classic" ? <>
         <nav class="menu-row" aria-label="Main menu">
           <details class="menu"><summary>File</summary><div class="menu-pop"><button onClick={newProject}>New project</button><button onClick={openProject}>Open project…</button><button onClick={() => void saveProject()}>Save</button><button onClick={() => void saveProject(true)}>Save as…</button><hr /><button onClick={exportToFolder}>Export website…</button></div></details>
@@ -265,7 +265,7 @@ function App() {
         <button class="quiet-button" onClick={() => void saveProject()} title="Save project">Save</button>
         <button class="quiet-button export-action" onClick={exportToFolder} title="Export website files">Export</button>
         <button class="primary-button" onClick={() => void previewSite()}><span>▷</span> Preview</button>
-        <button class="avatar-button" title="VisionWeave settings" onClick={() => setActivePanel("settings")}>A</button>
+        <button class="avatar-button" title="WeaveCatcher settings" onClick={() => setActivePanel("settings")}>A</button>
       </div>
     </header>
 
@@ -297,7 +297,7 @@ function App() {
           {activePanel === "layers" && <div class="panel-content layers-panel"><div class="panel-section-title"><span>PAGE STRUCTURE</span><span class="tiny-count">{elementCount} items</span></div>{elements.length ? <div class="layer-tree">{elements.map((element, index) => <LayerItem key={element.id} element={element} depth={0} index={index} parentId={null} siblingIds={elements.map((item) => item.id)} selectedId={selectedId} select={setSelectedId} mutate={mutate} />)}</div> : <div class="empty-panel"><span>☷</span><strong>Nothing here yet</strong><p>Add an element to see your page structure.</p></div>}</div>}
           {activePanel === "behaviors" && <div class="panel-content behavior-panel"><div class="behavior-intro"><span class="behavior-symbol">⌁</span><div><strong>Make it interactive</strong><p>Choose what happens when visitors interact with this element.</p></div></div>{selected ? <BehaviorEditor element={selected} elements={page ? allElements(page.elements) : []} mutate={mutate} /> : <div class="empty-panel"><span>↖</span><strong>Select an element</strong><p>Choose an element on the canvas to add behavior.</p></div>}</div>}
           {activePanel === "theme" && <div class="panel-content theme-panel"><p class="section-label">QUICK STYLE PRESETS</p><p class="muted-copy">Select an element on your page, then choose a preset.</p>{selected ? <div class="preset-list"><button onClick={() => { void mutate({ type: "set_style", id: selected.id, property: "borderRadius", value: "12px" }); void mutate({ type: "set_style", id: selected.id, property: "boxShadow", value: "0 8px 24px rgba(31, 41, 55, .12)" }); }}>Soft card <span>▢</span></button><button onClick={() => { void mutate({ type: "set_style", id: selected.id, property: "backgroundColor", value: "#f4f6ff" }); void mutate({ type: "set_style", id: selected.id, property: "padding", value: "24px" }); }}>Lavender surface <span>◒</span></button><button onClick={() => { void mutate({ type: "set_style", id: selected.id, property: "color", value: "#ffffff" }); void mutate({ type: "set_style", id: selected.id, property: "backgroundColor", value: "#25324b" }); }}>Midnight <span>●</span></button><button onClick={() => { void mutate({ type: "set_style", id: selected.id, property: "color", value: "#18212f" }); void mutate({ type: "set_style", id: selected.id, property: "backgroundColor", value: "#ffffff" }); }}>Reset colors <span>↺</span></button></div> : <div class="empty-panel"><span>◒</span><strong>Select an element</strong><p>Choose an element to apply a style preset.</p></div>}</div>}
-          {activePanel === "settings" && <div class="panel-content settings-panel"><p class="section-label">PROJECT</p><label class="field-label">Project name<input value={documentModel.name} onChange={(event) => void mutate({ type: "rename_project", name: event.currentTarget.value })} /></label><button class="wide-row" onClick={openProject}><span>Open another project</span><b>↗</b></button><button class="wide-row" onClick={() => void saveProject(true)}><span>Save project as…</span><b>⇩</b></button><p class="section-label separated">EDITOR LAYOUT</p><p class="muted-copy">Your choice is saved on this device.</p><div class="layout-choice"><button class={documentModel.settings.layout === "classic" ? "chosen" : ""} onClick={() => setLayout("classic")}><span class="layout-thumb classic-thumb">▤</span><strong>Classic</strong><small>Menus &amp; toolbar</small></button><button class={documentModel.settings.layout === "modern" ? "chosen" : ""} onClick={() => setLayout("modern")}><span class="layout-thumb modern-thumb">▥</span><strong>Modern</strong><small>Expandable sidebar</small></button></div><p class="settings-footnote">VisionWeave 0.1 · Project format v1</p></div>}
+          {activePanel === "settings" && <div class="panel-content settings-panel"><p class="section-label">PROJECT</p><label class="field-label">Project name<input value={documentModel.name} onChange={(event) => void mutate({ type: "rename_project", name: event.currentTarget.value })} /></label><button class="wide-row" onClick={openProject}><span>Open another project</span><b>↗</b></button><button class="wide-row" onClick={() => void saveProject(true)}><span>Save project as…</span><b>⇩</b></button><p class="section-label separated">EDITOR LAYOUT</p><p class="muted-copy">Your choice is saved on this device.</p><div class="layout-choice"><button class={documentModel.settings.layout === "classic" ? "chosen" : ""} onClick={() => setLayout("classic")}><span class="layout-thumb classic-thumb">▤</span><strong>Classic</strong><small>Menus &amp; toolbar</small></button><button class={documentModel.settings.layout === "modern" ? "chosen" : ""} onClick={() => setLayout("modern")}><span class="layout-thumb modern-thumb">▥</span><strong>Modern</strong><small>Expandable sidebar</small></button></div><p class="settings-footnote">WeaveCatcher 0.1 · Project format v1</p></div>}
         </div>
       </aside>
 
@@ -320,7 +320,7 @@ function App() {
         {selected ? <Inspector element={selected} mutate={mutate} /> : <div class="inspector-empty"><div class="cursor-art">↖</div><strong>Nothing selected</strong><p>Click an element on your canvas to edit its content, style, and behavior.</p><button class="text-action" onClick={() => setActivePanel("add")}>Browse elements <span>→</span></button></div>}
       </aside>
     </div>
-    <footer class="app-footer"><span>VisionWeave <b>·</b> {documentModel.name}</span><span class="footer-status"><i /> Ready</span><span>Ctrl/Cmd + Z to undo</span></footer>
+    <footer class="app-footer"><span>WeaveCatcher <b>·</b> {documentModel.name}</span><span class="footer-status"><i /> Ready</span><span>Ctrl/Cmd + Z to undo</span></footer>
     {(toast || error) && <div class={`toast ${error ? "toast-error" : ""}`} role="status">{error ? <span>!</span> : <span>✓</span>}{error || toast}<button onClick={() => { setError(""); setToast(""); }}>×</button></div>}
   </div>;
 }
