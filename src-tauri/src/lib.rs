@@ -24,5 +24,5 @@ pub fn run() {
             ipc::get_export_preview
         ])
         .run(tauri::generate_context!())
-        .expect("failed to run VisionWeave");
+        .expect("failed to run WeaveCatcher");
 }
