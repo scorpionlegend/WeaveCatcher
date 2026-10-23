@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - "visionweave-v*"
+      - "weavecatcher-v*"
 
 permissions:
   contents: write
@@ -68,18 +68,18 @@ jobs:
           $setup = Get-ChildItem -LiteralPath (Join-Path $bundle "nsis") -Filter "*.exe" -File | Select-Object -First 1
           $msi = Get-ChildItem -LiteralPath (Join-Path $bundle "msi") -Filter "*.msi" -File | Select-Object -First 1
           if (-not $setup -or -not $msi) { throw "Expected NSIS and MSI installers were not produced." }
-          Copy-Item -LiteralPath $setup.FullName -Destination (Join-Path $assets "VisionWeave-v$version-windows-${{ matrix.arch }}-setup.exe")
-          Copy-Item -LiteralPath $msi.FullName -Destination (Join-Path $assets "VisionWeave-v$version-windows-${{ matrix.arch }}.msi")
+          Copy-Item -LiteralPath $setup.FullName -Destination (Join-Path $assets "WeaveCatcher-v$version-windows-${{ matrix.arch }}-setup.exe")
+          Copy-Item -LiteralPath $msi.FullName -Destination (Join-Path $assets "WeaveCatcher-v$version-windows-${{ matrix.arch }}.msi")
 
-          $binary = Join-Path $PWD "src-tauri/target/${{ matrix.target }}/release/visionweave.exe"
+          $binary = Join-Path $PWD "src-tauri/target/${{ matrix.target }}/release/weavecatcher.exe"
           if (-not (Test-Path -LiteralPath $binary)) { throw "Expected application executable was not produced: $binary" }
-          $portable = Join-Path $env:RUNNER_TEMP "VisionWeave-portable"
+          $portable = Join-Path $env:RUNNER_TEMP "WeaveCatcher-portable"
           New-Item -ItemType Directory -Force -Path $portable | Out-Null
-          Copy-Item -LiteralPath $binary -Destination (Join-Path $portable "VisionWeave.exe")
+          Copy-Item -LiteralPath $binary -Destination (Join-Path $portable "WeaveCatcher.exe")
           @"
-          Run VisionWeave.exe to start the application. Windows 10 and 11 include the Microsoft WebView2 runtime used by VisionWeave.
+          Run WeaveCatcher.exe to start the application. Windows 10 and 11 include the Microsoft WebView2 runtime used by WeaveCatcher.
           "@ | Set-Content -Encoding UTF8 (Join-Path $portable "README.txt")
-          Compress-Archive -Path (Join-Path $portable "*") -DestinationPath (Join-Path $assets "VisionWeave-v$version-windows-${{ matrix.arch }}-portable.zip") -Force
+          Compress-Archive -Path (Join-Path $portable "*") -DestinationPath (Join-Path $assets "WeaveCatcher-v$version-windows-${{ matrix.arch }}-portable.zip") -Force
       - uses: actions/upload-artifact@v4
         with:
           name: windows-${{ matrix.arch }}
@@ -114,8 +114,8 @@ jobs:
           dmg="$(find src-tauri/target/universal-apple-darwin/release/bundle/dmg -maxdepth 1 -name '*.dmg' -print -quit)"
           app="$(find src-tauri/target/universal-apple-darwin/release/bundle/macos -maxdepth 1 -name '*.app' -print -quit)"
           test -n "$dmg" && test -n "$app"
-          cp "$dmg" "$assets/VisionWeave-v${version}-macos-universal.dmg"
-          ditto -c -k --sequesterRsrc --keepParent "$app" "$assets/VisionWeave-v${version}-macos-universal-app.zip"
+          cp "$dmg" "$assets/WeaveCatcher-v${version}-macos-universal.dmg"
+          ditto -c -k --sequesterRsrc --keepParent "$app" "$assets/WeaveCatcher-v${version}-macos-universal-app.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: macos-universal
@@ -163,17 +163,17 @@ jobs:
           deb="$(find src-tauri/target -path '*/bundle/deb/*.deb' -type f -print -quit)"
           rpm="$(find src-tauri/target -path '*/bundle/rpm/*.rpm' -type f -print -quit)"
           test -n "$appimage" && test -n "$deb" && test -n "$rpm"
-          appimage_name="VisionWeave-v${version}-linux-${arch}.AppImage"
-          deb_name="VisionWeave-v${version}-linux-${arch}.deb"
+          appimage_name="WeaveCatcher-v${version}-linux-${arch}.AppImage"
+          deb_name="WeaveCatcher-v${version}-linux-${arch}.deb"
           cp "$appimage" "$assets/$appimage_name"
           cp "$deb" "$assets/$deb_name"
-          cp "$rpm" "$assets/VisionWeave-v${version}-linux-${arch}.rpm"
+          cp "$rpm" "$assets/WeaveCatcher-v${version}-linux-${arch}.rpm"
 
           "$appimage" --appimage-extract >/dev/null
-          tar -C squashfs-root -czf "$assets/VisionWeave-v${version}-linux-${arch}.tar.gz" .
+          tar -C squashfs-root -czf "$assets/WeaveCatcher-v${version}-linux-${arch}.tar.gz" .
           rm -rf squashfs-root
 
-          release_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/visionweave-v${version}/${appimage_name}"
+          release_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/weavecatcher-v${version}/${appimage_name}"
           zsyncmake -u "$release_url" -o "$assets/${appimage_name}.zsync" "$assets/$appimage_name"
 
           mkdir -p "$work/deb" "$work/arch-root"
@@ -183,29 +183,29 @@ jobs:
           builddate="$(date +%s)"
           installed_size="$(du -sb "$work/arch-root" | cut -f1)"
           cat > "$work/arch-root/.PKGINFO" <<EOF
-          pkgname = visionweave-bin
-          pkgbase = visionweave-bin
+          pkgname = weavecatcher-bin
+          pkgbase = weavecatcher-bin
           pkgver = ${version}-1
           pkgdesc = Visual website editor desktop application
-          url = https://github.com/scorpionlegend/VisionWeave
+          url = https://github.com/scorpionlegend/WeaveCatcher
           builddate = ${builddate}
-          packager = VisionWeave release workflow
+          packager = WeaveCatcher release workflow
           size = ${installed_size}
           arch = ${arch}
           depend = gtk3
           depend = webkit2gtk-4.1
           depend = libsoup3
           EOF
-          tar --sort=name --mtime="@${builddate}" --owner=0 --group=0 --numeric-owner -C "$work/arch-root" -cf - . | zstd -T0 -19 -o "$assets/VisionWeave-v${version}-linux-${arch}.pkg.tar.zst"
+          tar --sort=name --mtime="@${builddate}" --owner=0 --group=0 --numeric-owner -C "$work/arch-root" -cf - . | zstd -T0 -19 -o "$assets/WeaveCatcher-v${version}-linux-${arch}.pkg.tar.zst"
 
           flatpak_dir="$work/flatpak"
           mkdir -p "$flatpak_dir"
           cp packaging/linux/flatpak.yaml "$flatpak_dir/flatpak.yaml"
-          cp "$deb" "$flatpak_dir/VisionWeave.deb"
+          cp "$deb" "$flatpak_dir/WeaveCatcher.deb"
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak install --user --noninteractive -y flathub org.gnome.Platform//49 org.gnome.Sdk//49
           flatpak-builder --force-clean --user --disable-cache --repo="$flatpak_dir/repo" "$flatpak_dir/build" "$flatpak_dir/flatpak.yaml"
-          flatpak build-bundle "$flatpak_dir/repo" "$assets/VisionWeave-v${version}-linux-${arch}.flatpak" com.visionweave.editor stable --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak build-bundle "$flatpak_dir/repo" "$assets/WeaveCatcher-v${version}-linux-${arch}.flatpak" com.weavecatcher.editor stable --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo
           rm -rf "$work"
       - uses: actions/upload-artifact@v4
         with:
@@ -245,13 +245,13 @@ jobs:
             deb="$(find src-tauri/target -path '*/bundle/deb/*.deb' -type f -print -quit)"
             rpm="$(find src-tauri/target -path '*/bundle/rpm/*.rpm' -type f -print -quit)"
             test -n "$deb" && test -n "$rpm"
-            cp "$deb" "/artifacts/VisionWeave-v${version}-linux-riscv64.deb"
-            cp "$rpm" "/artifacts/VisionWeave-v${version}-linux-riscv64.rpm"
-            mkdir -p /tmp/visionweave-root /tmp/visionweave-deb
-            (cd /tmp/visionweave-deb && ar x "$GITHUB_WORKSPACE/$deb")
-            data_tar="$(find /tmp/visionweave-deb -maxdepth 1 -name 'data.tar.*' -print -quit)"
-            tar -xf "$data_tar" -C /tmp/visionweave-root
-            tar -C /tmp/visionweave-root -czf "/artifacts/VisionWeave-v${version}-linux-riscv64.tar.gz" .
+            cp "$deb" "/artifacts/WeaveCatcher-v${version}-linux-riscv64.deb"
+            cp "$rpm" "/artifacts/WeaveCatcher-v${version}-linux-riscv64.rpm"
+            mkdir -p /tmp/weavecatcher-root /tmp/weavecatcher-deb
+            (cd /tmp/weavecatcher-deb && ar x "$GITHUB_WORKSPACE/$deb")
+            data_tar="$(find /tmp/weavecatcher-deb -maxdepth 1 -name 'data.tar.*' -print -quit)"
+            tar -xf "$data_tar" -C /tmp/weavecatcher-root
+            tar -C /tmp/weavecatcher-root -czf "/artifacts/WeaveCatcher-v${version}-linux-riscv64.tar.gz" .
       - uses: actions/upload-artifact@v4
         with:
           name: linux-riscv64
@@ -284,9 +284,9 @@ jobs:
             cargo build --manifest-path src-tauri/Cargo.toml --release
             version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
             mkdir -p "$GITHUB_WORKSPACE/release-assets/freebsd-stage"
-            cp src-tauri/target/release/visionweave "$GITHUB_WORKSPACE/release-assets/freebsd-stage/"
+            cp src-tauri/target/release/weavecatcher "$GITHUB_WORKSPACE/release-assets/freebsd-stage/"
             cp README.md "$GITHUB_WORKSPACE/release-assets/freebsd-stage/"
-            tar -C "$GITHUB_WORKSPACE/release-assets/freebsd-stage" -czf "$GITHUB_WORKSPACE/release-assets/VisionWeave-v${version}-freebsd-x86_64.tar.gz" .
+            tar -C "$GITHUB_WORKSPACE/release-assets/freebsd-stage" -czf "$GITHUB_WORKSPACE/release-assets/WeaveCatcher-v${version}-freebsd-x86_64.tar.gz" .
             rm -rf "$GITHUB_WORKSPACE/release-assets/freebsd-stage"
       - uses: actions/upload-artifact@v4
         with:
@@ -313,8 +313,8 @@ jobs:
       - name: Publish release and assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('visionweave-v{0}', needs.prepare.outputs.version) }}
-          name: VisionWeave v${{ needs.prepare.outputs.version }}
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('weavecatcher-v{0}', needs.prepare.outputs.version) }}
+          name: WeaveCatcher v${{ needs.prepare.outputs.version }}
           body: |
             ## Downloads
 
@@ -326,7 +326,7 @@ jobs:
 
             `SHA256SUMS.txt` contains checksums for the attached files. GitHub also provides source code `.zip` and `.tar.gz` archives below.
 
-            The Mac ZIP contains the app bundle; VisionWeave does not currently ship a separate command-line executable. The browser edition is not included in this desktop release.
+            The Mac ZIP contains the app bundle; WeaveCatcher does not currently ship a separate command-line executable. The browser edition is not included in this desktop release.
 
             Installers are not code-signed. Windows may show a SmartScreen prompt, and macOS may require approval in Privacy & Security the first time the app is opened.
           files: release-assets/*
