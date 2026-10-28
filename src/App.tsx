@@ -146,7 +146,7 @@ function App() {
 
   async function openProject() {
     try {
-      const path = await open({ multiple: false, filters: [{ name: "WeaveCatcher project", extensions: ["weavecatcher.json", "visionweave.json", "json"] }] });
+      const path = await open({ multiple: false, filters: [{ name: "WeaveCatcher project", extensions: ["wc", "weavecatcher.json", "visionweave.json", "json"] }] });
       if (typeof path !== "string") return;
       let next = await invoke<DocumentModel>("load_project", { path });
       const preferred = localStorage.getItem("visionweave-layout");
@@ -160,7 +160,7 @@ function App() {
     try {
       let path: string | undefined;
       if (saveAs) {
-        const picked = await save({ defaultPath: `${documentModel?.name ?? "Untitled website"}.weavecatcher.json`, filters: [{ name: "WeaveCatcher project", extensions: ["json"] }] });
+        const picked = await save({ defaultPath: `${documentModel?.name ?? "Untitled website"}.wc`, filters: [{ name: "WeaveCatcher project", extensions: ["wc"] }] });
         if (!picked) return;
         path = picked;
       }
@@ -197,8 +197,15 @@ function App() {
     } catch (cause) { showError(cause); }
   }
 
-  function addElement(kind: string, parentId?: string | null) {
-    void mutate({ type: "add_element", kind, parentId: parentId ?? null });
+  async function addElement(kind: string, parentId?: string | null) {
+    const before = parentId ? findElement(page?.elements ?? [], parentId)?.children ?? [] : page?.elements ?? [];
+    const next = await mutate({ type: "add_element", kind, parentId: parentId ?? null });
+    const after = parentId ? findElement(next?.pages.find((item) => item.id === next.activePageId)?.elements ?? [], parentId)?.children ?? [] : next?.pages.find((item) => item.id === next.activePageId)?.elements ?? [];
+    const added = after.find((element) => !before.some((item) => item.id === element.id));
+    if (added) {
+      setSelectedId(added.id);
+      setToast(`${added.name} added to the canvas`);
+    }
   }
 
   function onRootDrop(event: DragEvent) {
@@ -306,7 +313,7 @@ function App() {
         <div class={`editor-workarea ${showCode ? "with-code" : ""}`}>
           <div class="stage-scroll" ref={stageRef} onClick={() => { setSelectedId(null); setContextPoint(null); }} onDragOver={(event) => { event.preventDefault(); setDropTarget("root"); }} onDrop={(event) => { onRootDrop(event); setDropTarget(null); }}>
             <div class={`canvas-page ${dropTarget === "root" && draggingKind ? "root-drop-target" : ""}`}>
-              {elements.length ? elements.map((element) => <CanvasElement key={element.id} node={element} selectedId={selectedId} dropTarget={dropTarget} setDropTarget={setDropTarget} mutate={mutate} onPick={pickElement} onPreview={previewBehavior} onDragState={(id, kind) => { setDraggingId(id); setDraggingKind(kind); }} />) : <div class="canvas-empty"><div class="empty-art"><span>＋</span><i /><b /><em /></div><h2>Your canvas is ready</h2><p>Drag an element here or add your first block from the panel.</p><button class="primary-button" onClick={() => setActivePanel("add")}>＋ Add your first element</button></div>}
+              {elements.length ? elements.map((element) => <CanvasElement key={element.id} node={element} selectedId={selectedId} dropTarget={dropTarget} setDropTarget={setDropTarget} mutate={mutate} onPick={pickElement} onPreview={previewBehavior} onDragState={(id, kind) => { setDraggingId(id); setDraggingKind(kind); }} />) : <div class="canvas-empty"><div class="empty-art"><span>＋</span><i /><b /><em /></div><h2>Your canvas is ready</h2><p>Drag an element here or add your first block from the panel.</p><button class="primary-button" onClick={() => void addElement("section")}>＋ Add a section</button></div>}
               {selected && contextPoint && <div class="floating-toolbar" style={{ left: `${contextPoint.x}px`, top: `${contextPoint.y}px` }} onClick={(event) => event.stopPropagation()}><span class="floating-name">{selected.name}</span><button title="Duplicate" onClick={() => void mutate({ type: "duplicate_element", id: selected.id })}>⧉</button><button title="Delete" onClick={() => { void mutate({ type: "delete_element", id: selected.id }); setSelectedId(null); }}>⌫</button><button title="Open behavior settings" onClick={() => setActivePanel("behaviors")}>⌁</button></div>}
               {modalPreview && <div class="modal-preview-backdrop" onClick={() => setModalPreview(null)}><div class="modal-preview" onClick={(event) => event.stopPropagation()}><button class="modal-close" onClick={() => setModalPreview(null)}>×</button><span class="eyebrow">INTERACTION PREVIEW</span><h3>{findElement(elements, modalPreview)?.content || "Modal preview"}</h3><p>This dialog demonstrates the configured modal behavior.</p><button class="primary-button" onClick={() => setModalPreview(null)}>Close</button></div></div>}
             </div>
