@@ -57,6 +57,8 @@ jobs:
       - name: Install frontend dependencies
         run: npm install --no-audit --no-fund
       - name: Build installers
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: npm run tauri -- build --target ${{ matrix.target }} --bundles nsis,msi
       - name: Package Windows downloads
         shell: pwsh
@@ -70,6 +72,9 @@ jobs:
           if (-not $setup -or -not $msi) { throw "Expected NSIS and MSI installers were not produced." }
           Copy-Item -LiteralPath $setup.FullName -Destination (Join-Path $assets "WeaveCatcher-v$version-windows-${{ matrix.arch }}-setup.exe")
           Copy-Item -LiteralPath $msi.FullName -Destination (Join-Path $assets "WeaveCatcher-v$version-windows-${{ matrix.arch }}.msi")
+          $setupSig = "$($setup.FullName).sig"
+          if (-not (Test-Path -LiteralPath $setupSig)) { throw "Updater signature for the NSIS installer was not produced: $setupSig" }
+          Copy-Item -LiteralPath $setupSig -Destination (Join-Path $assets "WeaveCatcher-v$version-windows-${{ matrix.arch }}-setup.exe.sig")
 
           $binary = Join-Path $PWD "src-tauri/target/${{ matrix.target }}/release/weavecatcher.exe"
           if (-not (Test-Path -LiteralPath $binary)) { throw "Expected application executable was not produced: $binary" }
@@ -103,6 +108,8 @@ jobs:
       - name: Install frontend dependencies
         run: npm install --no-audit --no-fund
       - name: Build universal DMG
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: npm run tauri -- build --target universal-apple-darwin --bundles app,dmg
       - name: Package macOS downloads
         shell: bash
@@ -116,6 +123,10 @@ jobs:
           test -n "$dmg" && test -n "$app"
           cp "$dmg" "$assets/WeaveCatcher-v${version}-macos-universal.dmg"
           ditto -c -k --sequesterRsrc --keepParent "$app" "$assets/WeaveCatcher-v${version}-macos-universal-app.zip"
+          updater_app="$(find src-tauri/target/universal-apple-darwin/release/bundle/macos -maxdepth 1 -name '*.app.tar.gz' -print -quit)"
+          test -n "$updater_app" && test -f "${updater_app}.sig"
+          cp "$updater_app" "$assets/WeaveCatcher-v${version}-macos-universal-app.tar.gz"
+          cp "${updater_app}.sig" "$assets/WeaveCatcher-v${version}-macos-universal-app.tar.gz.sig"
       - uses: actions/upload-artifact@v4
         with:
           name: macos-universal
@@ -149,6 +160,8 @@ jobs:
       - name: Install frontend dependencies
         run: npm install --no-audit --no-fund
       - name: Build Linux packages
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: npm run tauri -- build --bundles appimage,deb,rpm
       - name: Create AppImage archives and secondary packages
         shell: bash
@@ -166,6 +179,8 @@ jobs:
           appimage_name="WeaveCatcher-v${version}-linux-${arch}.AppImage"
           deb_name="WeaveCatcher-v${version}-linux-${arch}.deb"
           cp "$appimage" "$assets/$appimage_name"
+          test -f "${appimage}.sig"
+          cp "${appimage}.sig" "$assets/${appimage_name}.sig"
           cp "$deb" "$assets/$deb_name"
           cp "$rpm" "$assets/WeaveCatcher-v${version}-linux-${arch}.rpm"
 
@@ -224,12 +239,49 @@ jobs:
         with:
           path: release-assets
           merge-multiple: true
+      - name: Generate updater manifest
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          cd release-assets
+          version="$RELEASE_VERSION"
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/weavecatcher-v${version}"
+          sig() { tr -d '\r\n' < "$1"; }
+          for required in \
+            "WeaveCatcher-v${version}-macos-universal-app.tar.gz.sig" \
+            "WeaveCatcher-v${version}-linux-x86_64.AppImage.sig" \
+            "WeaveCatcher-v${version}-linux-aarch64.AppImage.sig" \
+            "WeaveCatcher-v${version}-windows-x64-setup.exe.sig" \
+            "WeaveCatcher-v${version}-windows-arm64-setup.exe.sig" \
+            "WeaveCatcher-v${version}-windows-x86-setup.exe.sig"; do
+            test -f "$required"
+          done
+          mac_sig="$(sig "WeaveCatcher-v${version}-macos-universal-app.tar.gz.sig")"
+          cat > latest.json <<EOF
+          {
+            "version": "${version}",
+            "notes": "WeaveCatcher v${version}. See the release page for the full changelog.",
+            "pub_date": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
+            "platforms": {
+              "darwin-aarch64": { "signature": "${mac_sig}", "url": "${base}/WeaveCatcher-v${version}-macos-universal-app.tar.gz" },
+              "darwin-x86_64": { "signature": "${mac_sig}", "url": "${base}/WeaveCatcher-v${version}-macos-universal-app.tar.gz" },
+              "linux-x86_64": { "signature": "$(sig "WeaveCatcher-v${version}-linux-x86_64.AppImage.sig")", "url": "${base}/WeaveCatcher-v${version}-linux-x86_64.AppImage" },
+              "linux-aarch64": { "signature": "$(sig "WeaveCatcher-v${version}-linux-aarch64.AppImage.sig")", "url": "${base}/WeaveCatcher-v${version}-linux-aarch64.AppImage" },
+              "windows-x86_64": { "signature": "$(sig "WeaveCatcher-v${version}-windows-x64-setup.exe.sig")", "url": "${base}/WeaveCatcher-v${version}-windows-x64-setup.exe" },
+              "windows-aarch64": { "signature": "$(sig "WeaveCatcher-v${version}-windows-arm64-setup.exe.sig")", "url": "${base}/WeaveCatcher-v${version}-windows-arm64-setup.exe" },
+              "windows-i686": { "signature": "$(sig "WeaveCatcher-v${version}-windows-x86-setup.exe.sig")", "url": "${base}/WeaveCatcher-v${version}-windows-x86-setup.exe" }
+            }
+          }
+          EOF
+          node -e "JSON.parse(require('fs').readFileSync('latest.json','utf8'))"
       - name: Create checksums
         shell: bash
         run: |
           set -euo pipefail
           cd release-assets
-          find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -printf '%f\n' | sort | while read -r file; do sha256sum "$file"; done > SHA256SUMS.txt
+          find . -maxdepth 1 -type f ! -name SHA256SUMS.txt ! -name latest.json ! -name '*.sig' -printf '%f\n' | sort | while read -r file; do sha256sum "$file"; done > SHA256SUMS.txt
       - name: Publish release and assets
         uses: softprops/action-gh-release@v3
         with:
@@ -243,6 +295,8 @@ jobs:
             - **Linux x86_64 and AArch64:** `.AppImage`, `.AppImage.zsync`, `.deb`, `.flatpak`, `.pkg.tar.zst`, `.rpm`, and `.tar.gz`.
 
             `SHA256SUMS.txt` contains checksums for the attached files. GitHub also provides source code `.zip` and `.tar.gz` archives below.
+
+            The app can check for and install newer releases from **Settings → Updates**.
 
             The Mac ZIP contains the app bundle; WeaveCatcher does not currently ship a separate command-line executable. The browser edition is not included in this desktop release.
 

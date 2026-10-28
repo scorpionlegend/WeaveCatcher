@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { h } from "preact";
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
+import { check, type Update } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import type { Behavior, DocumentModel, EditIntent, ElementNode, ExportBundle } from "./types";
 
 type Panel = "add" | "pages" | "layers" | "behaviors" | "theme" | "settings";
@@ -54,6 +57,10 @@ function App() {
   const [lastExportDir, setLastExportDir] = useState<string | null>(null);
   const [contextPoint, setContextPoint] = useState<{ x: number; y: number } | null>(null);
   const [modalPreview, setModalPreview] = useState<string | null>(null);
+  const [updateState, setUpdateState] = useState<"idle" | "checking" | "current" | "available" | "downloading">("idle");
+  const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
+  const [updateProgress, setUpdateProgress] = useState("");
+  const [appVersion, setAppVersion] = useState("");
   const stageRef = useRef<HTMLDivElement>(null);
 
   const page = useMemo(() => documentModel?.pages.find((item) => item.id === documentModel.activePageId), [documentModel]);
@@ -78,6 +85,53 @@ function App() {
     const timer = window.setTimeout(() => setToast(""), 2600);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(() => setAppVersion(""));
+    const timer = window.setTimeout(() => void checkForUpdates(false), 2500);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  async function checkForUpdates(manual: boolean) {
+    if (updateState === "checking" || updateState === "downloading") return;
+    setUpdateState("checking");
+    try {
+      const update = await check();
+      if (update) {
+        setPendingUpdate(update);
+        setUpdateState("available");
+        if (manual) setToast(`Version ${update.version} is available`);
+      } else {
+        setPendingUpdate(null);
+        setUpdateState("current");
+        if (manual) setToast("You're on the latest version");
+      }
+    } catch (cause) {
+      setUpdateState("idle");
+      if (manual) showError(cause);
+    }
+  }
+
+  async function installUpdate() {
+    if (!pendingUpdate) return;
+    setUpdateState("downloading");
+    let downloaded = 0;
+    let total = 0;
+    try {
+      await pendingUpdate.downloadAndInstall((event) => {
+        if (event.event === "Started") total = event.data.contentLength ?? 0;
+        else if (event.event === "Progress") downloaded += event.data.chunkLength;
+        else if (event.event === "Finished") setUpdateProgress("Installing update…");
+        if (event.event !== "Finished") setUpdateProgress(total ? `${Math.round((downloaded / total) * 100)}% of ${(total / 1048576).toFixed(1)} MB` : `${(downloaded / 1048576).toFixed(1)} MB downloaded`);
+      });
+      setUpdateProgress("Restarting…");
+      await relaunch();
+    } catch (cause) {
+      setUpdateState("available");
+      setUpdateProgress("");
+      showError(cause);
+    }
+  }
 
   useEffect(() => {
     if (!showCode) return;
@@ -304,7 +358,9 @@ function App() {
           {activePanel === "layers" && <div class="panel-content layers-panel"><div class="panel-section-title"><span>PAGE STRUCTURE</span><span class="tiny-count">{elementCount} items</span></div>{elements.length ? <div class="layer-tree">{elements.map((element, index) => <LayerItem key={element.id} element={element} depth={0} index={index} parentId={null} siblingIds={elements.map((item) => item.id)} selectedId={selectedId} select={setSelectedId} mutate={mutate} />)}</div> : <div class="empty-panel"><span>☷</span><strong>Nothing here yet</strong><p>Add an element to see your page structure.</p></div>}</div>}
           {activePanel === "behaviors" && <div class="panel-content behavior-panel"><div class="behavior-intro"><span class="behavior-symbol">⌁</span><div><strong>Make it interactive</strong><p>Choose what happens when visitors interact with this element.</p></div></div>{selected ? <BehaviorEditor element={selected} elements={page ? allElements(page.elements) : []} mutate={mutate} /> : <div class="empty-panel"><span>↖</span><strong>Select an element</strong><p>Choose an element on the canvas to add behavior.</p></div>}</div>}
           {activePanel === "theme" && <div class="panel-content theme-panel"><p class="section-label">QUICK STYLE PRESETS</p><p class="muted-copy">Select an element on your page, then choose a preset.</p>{selected ? <div class="preset-list"><button onClick={() => { void mutate({ type: "set_style", id: selected.id, property: "borderRadius", value: "12px" }); void mutate({ type: "set_style", id: selected.id, property: "boxShadow", value: "0 8px 24px rgba(31, 41, 55, .12)" }); }}>Soft card <span>▢</span></button><button onClick={() => { void mutate({ type: "set_style", id: selected.id, property: "backgroundColor", value: "#f4f6ff" }); void mutate({ type: "set_style", id: selected.id, property: "padding", value: "24px" }); }}>Lavender surface <span>◒</span></button><button onClick={() => { void mutate({ type: "set_style", id: selected.id, property: "color", value: "#ffffff" }); void mutate({ type: "set_style", id: selected.id, property: "backgroundColor", value: "#25324b" }); }}>Midnight <span>●</span></button><button onClick={() => { void mutate({ type: "set_style", id: selected.id, property: "color", value: "#18212f" }); void mutate({ type: "set_style", id: selected.id, property: "backgroundColor", value: "#ffffff" }); }}>Reset colors <span>↺</span></button></div> : <div class="empty-panel"><span>◒</span><strong>Select an element</strong><p>Choose an element to apply a style preset.</p></div>}</div>}
-          {activePanel === "settings" && <div class="panel-content settings-panel"><p class="section-label">PROJECT</p><label class="field-label">Project name<input value={documentModel.name} onChange={(event) => void mutate({ type: "rename_project", name: event.currentTarget.value })} /></label><button class="wide-row" onClick={openProject}><span>Open another project</span><b>↗</b></button><button class="wide-row" onClick={() => void saveProject(true)}><span>Save project as…</span><b>⇩</b></button><p class="section-label separated">EDITOR LAYOUT</p><p class="muted-copy">Your choice is saved on this device.</p><div class="layout-choice"><button class={documentModel.settings.layout === "classic" ? "chosen" : ""} onClick={() => setLayout("classic")}><span class="layout-thumb classic-thumb">▤</span><strong>Classic</strong><small>Menus &amp; toolbar</small></button><button class={documentModel.settings.layout === "modern" ? "chosen" : ""} onClick={() => setLayout("modern")}><span class="layout-thumb modern-thumb">▥</span><strong>Modern</strong><small>Expandable sidebar</small></button></div><p class="settings-footnote">WeaveCatcher 0.1 · Project format v1</p></div>}
+          {activePanel === "settings" && <div class="panel-content settings-panel"><p class="section-label">PROJECT</p><label class="field-label">Project name<input value={documentModel.name} onChange={(event) => void mutate({ type: "rename_project", name: event.currentTarget.value })} /></label><button class="wide-row" onClick={openProject}><span>Open another project</span><b>↗</b></button><button class="wide-row" onClick={() => void saveProject(true)}><span>Save project as…</span><b>⇩</b></button><p class="section-label separated">EDITOR LAYOUT</p><p class="muted-copy">Your choice is saved on this device.</p><div class="layout-choice"><button class={documentModel.settings.layout === "classic" ? "chosen" : ""} onClick={() => setLayout("classic")}><span class="layout-thumb classic-thumb">▤</span><strong>Classic</strong><small>Menus &amp; toolbar</small></button><button class={documentModel.settings.layout === "modern" ? "chosen" : ""} onClick={() => setLayout("modern")}><span class="layout-thumb modern-thumb">▥</span><strong>Modern</strong><small>Expandable sidebar</small></button></div><p class="section-label separated">UPDATES</p>
+            {pendingUpdate ? <div class="update-card"><strong>Version {pendingUpdate.version} is available{appVersion ? ` · you have ${appVersion}` : ""}</strong>{pendingUpdate.body && <p class="muted-copy">{pendingUpdate.body.length > 220 ? `${pendingUpdate.body.slice(0, 220)}…` : pendingUpdate.body}</p>}<button class="primary-button update-action" disabled={updateState === "downloading"} onClick={() => void installUpdate()}>{updateState === "downloading" ? updateProgress || "Downloading…" : "⇩ Download & restart"}</button></div> : <div class="update-card"><p class="muted-copy">{updateState === "checking" ? "Checking for updates…" : updateState === "current" ? "You're on the latest version." : "WeaveCatcher checks for updates when it starts."}</p><button class="wide-row" disabled={updateState === "checking"} onClick={() => void checkForUpdates(true)}><span>Check for updates</span><b>↻</b></button></div>}
+            <p class="settings-footnote">WeaveCatcher {appVersion || "0.1"} · Project format v1</p></div>}
         </div>
       </aside>
 
