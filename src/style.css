@@ -55,7 +55,7 @@ button:disabled { opacity: .45; cursor: default; }
 .primary-button { border-color: #595fe0; background: #5f65e8; color: white; box-shadow: 0 3px 8px #5c64df2b; }
 .primary-button:hover { background: #5056d3; }
 .primary-button span { font-size: 15px; }
-.avatar-button { width: 31px; height: 31px; padding: 0; border-color: #f0d3b7; border-radius: 50%; background: #f8e9dc; color: #a96f43; font-weight: 700; }
+.avatar-button { width: 31px; height: 31px; padding: 0; border-color: #f0d3b7; border-radius: 50%; background: #f8e9dc; color: #a96f43; font-size: 17px; font-weight: 700; }
 .classic-toolbar { flex: 0 0 44px; height: 44px; display: flex; align-items: center; gap: 18px; padding: 0 17px; background: #fbfbfc; border-bottom: 1px solid var(--line); }
 .toolbar-group { display: flex; align-items: center; gap: 4px; }
 .toolbar-group button { height: 29px; padding: 0 8px; border: 0; border-radius: 5px; background: transparent; color: #677285; font-size: 14px; }

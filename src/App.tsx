@@ -914,7 +914,7 @@ return <div class="app-shell">
             <button class="quiet-button" onClick={() => void saveProject()} title="Save project">Save</button>
             <button class="quiet-button export-action" onClick={exportToFolder} title="Export website files">Export</button>
             <button class="primary-button" onClick={() => void previewSite()}><span>▷</span> Preview</button>
-            <button class="avatar-button" title="WeaveCatcher settings" onClick={() => openSettingsWindow()}>A</button>
+            <button class="avatar-button" title="WeaveCatcher settings" onClick={() => openSettingsWindow()}>⚙</button>
           </div>
         </header>
 
