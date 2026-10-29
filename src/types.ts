@@ -17,13 +17,15 @@ export type ElementNode = {
   children: ElementNode[];
 };
 
-export type Page = { id: string; name: string; slug: string; elements: ElementNode[] };
+export type Page = { id: string; name: string; slug: string; elements: ElementNode[]; customHtml: string };
 export type DocumentModel = {
   schemaVersion: number;
   name: string;
   pages: Page[];
   activePageId: string;
   settings: { layout: "classic" | "modern" };
+  customCss: string;
+  customJs: string;
 };
 export type ExportBundle = { html: string; css: string; js: string };
 
@@ -43,4 +45,5 @@ export type EditIntent =
   | { type: "delete_page"; id: string }
   | { type: "set_active_page"; id: string }
   | { type: "set_layout"; layout: "classic" | "modern" }
-  | { type: "rename_project"; name: string };
+  | { type: "rename_project"; name: string }
+  | { type: "set_custom_code"; html: string; css: string; js: string };

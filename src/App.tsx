@@ -60,7 +60,9 @@ function App() {
   const [activePanel, setActivePanel] = useState<Panel>("add");
   const [viewMode, setViewMode] = useState<ViewMode>("canvas");
   const [codeTab, setCodeTab] = useState<CodeTab>("html");
-  const [code, setCode] = useState<ExportBundle>({ html: "", css: "", js: "" });
+  const [savedCode, setSavedCode] = useState<ExportBundle>({ html: "", css: "", js: "" });
+  const [draftCode, setDraftCode] = useState<ExportBundle>({ html: "", css: "", js: "" });
+  const draftDirtyRef = useRef(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [draggingKind, setDraggingKind] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -73,6 +75,13 @@ function App() {
   const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
   const [updateProgress, setUpdateProgress] = useState("");
   const [appVersion, setAppVersion] = useState("");
+  const [splitSettings, setSplitSettings] = useState<{ orientation: "side" | "stacked"; codeFirst: boolean }>(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("visionweave-split") ?? "");
+      if (stored?.orientation === "side" || stored?.orientation === "stacked") return { orientation: stored.orientation, codeFirst: stored.codeFirst === true };
+    } catch { /* first launch */ }
+    return { orientation: "side", codeFirst: false };
+  });
   const stageRef = useRef<HTMLDivElement>(null);
 
   const page = useMemo(() => documentModel?.pages.find((item) => item.id === documentModel.activePageId), [documentModel]);
@@ -149,7 +158,10 @@ function App() {
 
   useEffect(() => {
     if (viewMode === "canvas") return;
-    invoke<ExportBundle>("get_export_preview").then(setCode).catch(showError);
+    invoke<ExportBundle>("get_export_preview").then((bundle) => {
+      setSavedCode(bundle);
+      if (!draftDirtyRef.current) setDraftCode(bundle);
+    }).catch(showError);
   }, [documentModel, viewMode]);
 
   useEffect(() => {
@@ -290,6 +302,48 @@ function App() {
     void mutate({ type: "set_layout", layout });
   }
 
+  function updateSplit(changes: Partial<{ orientation: "side" | "stacked"; codeFirst: boolean }>) {
+    setSplitSettings((previous) => {
+      const next = { ...previous, ...changes };
+      localStorage.setItem("visionweave-split", JSON.stringify(next));
+      return next;
+    });
+  }
+
+  function customCodeFor(tab: CodeTab): string {
+    if (!documentModel) return "";
+    if (tab === "html") return page?.customHtml ?? "";
+    return tab === "css" ? documentModel.customCss : documentModel.customJs;
+  }
+
+  function editCode(tab: CodeTab, value: string) {
+    const next = { ...draftCode, [tab]: value };
+    const changed = (["html", "css", "js"] as const).some((key) => next[key] !== savedCode[key]);
+    draftDirtyRef.current = changed;
+    setDraftCode(next);
+  }
+
+  async function applyCode(bundle = draftCode) {
+    const next = await mutate({ type: "set_custom_code", html: bundle.html, css: bundle.css, js: bundle.js });
+    if (next) {
+      draftDirtyRef.current = false;
+      setToast("Code saved — exports now use these files");
+    }
+  }
+
+  async function resetCodeTab() {
+    if (customCodeFor(codeTab)) {
+      const bundle = { ...draftCode, [codeTab]: "" };
+      setDraftCode(bundle);
+      await applyCode(bundle);
+      setToast("This file is generated from the canvas again");
+      return;
+    }
+    draftDirtyRef.current = false;
+    setDraftCode((previous) => ({ ...previous, [codeTab]: savedCode[codeTab] }));
+    setToast("Unsaved edits discarded");
+  }
+
   function pickElement(id: string, event: MouseEvent) {
     event.stopPropagation();
     setSelectedId(id);
@@ -387,7 +441,7 @@ function App() {
 
       <main class="canvas-area">
         <div class="canvas-toolbar"><div class="breadcrumb"><button onClick={() => setSelectedId(null)}>{documentModel.name}</button><span>/</span><button onClick={() => setSelectedId(null)}>{page?.name}</button>{selected && <><span>/</span><strong>{selected.name}</strong></>}</div><div class="canvas-tools"><span class={`saved-state ${dirty ? "unsaved" : ""}`}><i /> {dirty ? "Unsaved changes" : "All changes saved"}</span><i class="tool-divider" /><div class="view-switch" role="tablist" aria-label="Editor view">{VIEW_MODES.map((mode) => <button key={mode} role="tab" aria-selected={viewMode === mode} class={viewMode === mode ? "active" : ""} onClick={() => setViewMode(mode)}>{mode === "canvas" ? "Canvas" : mode === "split" ? "Split" : "Code"}</button>)}</div><i class="tool-divider" /><button class="icon-button" title="Zoom out" onClick={() => setToast("Canvas zoom: 100%")}>−</button><span class="zoom-label">100%</span><button class="icon-button" title="Zoom in" onClick={() => setToast("Canvas zoom: 100%")}>＋</button></div></div>
-        <div class={`editor-workarea ${viewMode !== "canvas" ? "with-code" : ""} ${viewMode === "code" ? "mode-code" : ""}`}>
+        <div class={`editor-workarea ${viewMode !== "canvas" ? "with-code" : ""} ${viewMode === "code" ? "mode-code" : ""} ${viewMode === "split" && splitSettings.orientation === "stacked" ? "split-stacked" : ""} ${splitSettings.codeFirst ? "code-first" : ""}`}>
           <div class="stage-scroll" ref={stageRef} onClick={() => { setSelectedId(null); setContextPoint(null); }} onDragOver={(event) => { event.preventDefault(); setDropTarget("root"); }} onDrop={(event) => { onRootDrop(event); setDropTarget(null); }}>
             <div class={`canvas-page ${dropTarget === "root" && draggingKind ? "root-drop-target" : ""}`}>
               {elements.length ? elements.map((element) => <CanvasElement key={element.id} node={element} selectedId={selectedId} dropTarget={dropTarget} setDropTarget={setDropTarget} mutate={mutate} onPick={pickElement} onPreview={previewBehavior} onDragState={(id, kind) => { setDraggingId(id); setDraggingKind(kind); }} />) : <div class="canvas-empty"><div class="empty-art"><span>＋</span><i /><b /><em /></div><h2>Your canvas is ready</h2><p>Drag an element here or add your first block from the panel.</p><button class="primary-button" onClick={() => void addElement("section")}>＋ Add a section</button></div>}
@@ -395,7 +449,26 @@ function App() {
               {modalPreview && <div class="modal-preview-backdrop" onClick={() => setModalPreview(null)}><div class="modal-preview" onClick={(event) => event.stopPropagation()}><button class="modal-close" onClick={() => setModalPreview(null)}>×</button><span class="eyebrow">INTERACTION PREVIEW</span><h3>{findElement(elements, modalPreview)?.content || "Modal preview"}</h3><p>This dialog demonstrates the configured modal behavior.</p><button class="primary-button" onClick={() => setModalPreview(null)}>Close</button></div></div>}
             </div>
           </div>
-          {viewMode !== "canvas" && <section class="code-panel"><div class="code-header"><div><span class="eyebrow">GENERATED CODE</span><h2>Page source</h2></div><button class="icon-button" onClick={() => setViewMode("canvas")} title="Close code view">×</button></div><div class="code-tabs">{(["html", "css", "js"] as const).map((tab) => <button class={codeTab === tab ? "active" : ""} onClick={() => setCodeTab(tab)}>{tab === "html" ? "index.html" : tab === "js" ? "script.js" : "styles.css"}</button>)}</div><pre class="code-source"><code>{code[codeTab]}</code></pre></section>}
+          {viewMode !== "canvas" && <section class="code-panel">
+            <div class="code-header">
+              <div><span class="eyebrow">CODE</span><h2>{customCodeFor(codeTab) ? "Custom code" : "Page source"}</h2></div>
+              <div class="code-header-actions">
+                {viewMode === "split" && <div class="split-controls" role="group" aria-label="Split layout">
+                  <button class={splitSettings.orientation === "side" ? "active" : ""} title="Split side by side" onClick={() => updateSplit({ orientation: "side" })}>◫</button>
+                  <button class={splitSettings.orientation === "stacked" ? "active" : ""} title="Split top and bottom" onClick={() => updateSplit({ orientation: "stacked" })}>▥</button>
+                  <button title={splitSettings.codeFirst ? "Show the canvas first" : "Show the code first"} onClick={() => updateSplit({ codeFirst: !splitSettings.codeFirst })}>⇄</button>
+                </div>}
+                <button class="icon-button" onClick={() => setViewMode("canvas")} title="Close code view">×</button>
+              </div>
+            </div>
+            <div class="code-tabs">{(["html", "css", "js"] as const).map((tab) => <button key={tab} class={codeTab === tab ? "active" : ""} onClick={() => setCodeTab(tab)}>{tab === "html" ? "index.html" : tab === "js" ? "script.js" : "styles.css"}{draftCode[tab] !== savedCode[tab] ? " •" : ""}</button>)}</div>
+            <textarea class="code-source" spellcheck={false} aria-label={`Edit ${codeTab} code`} value={draftCode[codeTab]} onInput={(event) => editCode(codeTab, event.currentTarget.value)} />
+            <div class="code-footer">
+              <span class="code-state">{customCodeFor(codeTab) ? "Custom code is used at export" : draftCode[codeTab] !== savedCode[codeTab] ? "Unsaved edits" : "Generated from the canvas"}</span>
+              <button class="text-action" disabled={!customCodeFor(codeTab) && draftCode[codeTab] === savedCode[codeTab]} title={customCodeFor(codeTab) ? "Go back to code generated from the canvas" : "Discard unsaved edits"} onClick={() => void resetCodeTab()}>Reset</button>
+              <button class="primary-button apply-code" disabled={!(["html", "css", "js"] as const).some((key) => draftCode[key] !== savedCode[key])} title="Use the edited code when the site is exported" onClick={() => void applyCode()}>Apply code</button>
+            </div>
+          </section>}
         </div>
         <footer class="statusbar"><span><i class="status-dot" /> {page?.name ?? "No page"}</span><span>{elementCount} element{elementCount === 1 ? "" : "s"}</span><span class="status-spacer" /><span>HTML · CSS · JavaScript</span></footer>
       </main>

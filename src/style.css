@@ -245,6 +245,23 @@ button:disabled { opacity: .45; cursor: default; }
 .code-tabs button.active::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: #666be8; content: ''; }
 .code-source { min-height: 0; flex: 1; overflow: auto; margin: 0; padding: 14px 12px; background: #fbfcfe; color: #566279; font: 10px/1.7 'Cascadia Code', 'SFMono-Regular', Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .code-source code { color: inherit; }
+textarea.code-source { width: 100%; resize: none; border: 0; outline: none; tab-size: 2; }
+textarea.code-source:focus { outline: none; box-shadow: inset 2px 0 0 var(--accent); }
+.code-header-actions { display: flex; align-items: center; gap: 6px; }
+.split-controls { display: flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--soft-line); border-radius: 7px; background: #fbfcfe; }
+.split-controls button { width: 26px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 5px; background: transparent; color: #939bab; font-size: 12px; cursor: pointer; }
+.split-controls button:hover { color: var(--accent); background: #f0f1fa; }
+.split-controls button.active { background: #eef0ff; color: var(--accent); }
+.code-footer { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-top: 1px solid var(--soft-line); background: #fff; }
+.code-state { flex: 1; color: #939bab; font-size: 9px; }
+.code-footer .text-action:disabled { color: #b9bfca; cursor: default; }
+.code-footer .apply-code { height: 28px; padding: 0 12px; font-size: 11px; }
+.code-footer .apply-code:disabled { opacity: .45; cursor: default; }
+.editor-workarea.code-first:not(.mode-code) .code-panel { order: -1; border-left: 0; border-right: 1px solid #dfe2e9; }
+.editor-workarea.split-stacked { flex-direction: column; }
+.editor-workarea.split-stacked .stage-scroll { flex: 1 1 58%; }
+.editor-workarea.split-stacked .code-panel { flex: 0 1 42%; border-left: 0; border-top: 1px solid #dfe2e9; }
+.editor-workarea.split-stacked.code-first:not(.mode-code) .code-panel { border-top: 0; border-bottom: 1px solid #dfe2e9; border-right: 0; }
 
 .inspector { flex: 0 0 276px; display: flex; flex-direction: column; border-left: 1px solid var(--line); background: #fff; }
 .inspector-heading { flex: 0 0 72px; height: 72px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid var(--soft-line); }

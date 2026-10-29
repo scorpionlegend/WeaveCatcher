@@ -21,6 +21,8 @@ pub enum EditIntent {
     SetActivePage { id: String },
     SetLayout { layout: String },
     RenameProject { name: String },
+    /// Stores hand-edited code. Empty strings mean "generate from the canvas" for that slot.
+    SetCustomCode { html: String, css: String, js: String },
 }
 
 pub fn apply(document: &mut Document, intent: EditIntent) -> Result<(), String> {
@@ -88,7 +90,7 @@ pub fn apply(document: &mut Document, intent: EditIntent) -> Result<(), String> 
         EditIntent::AddPage { name } => {
             let id = new_id();
             let slug = slugify(&name);
-            document.pages.push(Page { id: id.clone(), name, slug, elements: Vec::new() });
+            document.pages.push(Page { id: id.clone(), name, slug, elements: Vec::new(), custom_html: String::new() });
             document.active_page_id = id;
         }
         EditIntent::RenamePage { id, name } => {
@@ -111,6 +113,12 @@ pub fn apply(document: &mut Document, intent: EditIntent) -> Result<(), String> 
             document.settings.layout = layout;
         }
         EditIntent::RenameProject { name } => document.name = name,
+        EditIntent::SetCustomCode { html, css, js } => {
+            let page = active_page_mut(document)?;
+            page.custom_html = html;
+            document.custom_css = css;
+            document.custom_js = js;
+        }
     }
     Ok(())
 }

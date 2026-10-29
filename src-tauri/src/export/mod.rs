@@ -9,16 +9,40 @@ pub struct ExportBundle { pub html: String, pub css: String, pub js: String }
 
 pub fn preview(document: &Document) -> Result<ExportBundle, String> {
     let page = active_page(document)?;
-    Ok(ExportBundle { html: emit_html(page), css: emit_css(&page.elements), js: emit_js(&page.elements) })
+    Ok(ExportBundle {
+        html: page_code(page),
+        css: sheet_code(document, page),
+        js: script_code(document),
+    })
+}
+
+/// The HTML written for a page: hand-edited code when the page has any, generated otherwise.
+fn page_code(page: &Page) -> String {
+    if page.custom_html.is_empty() { emit_html(page) } else { page.custom_html.clone() }
+}
+
+/// The stylesheet shown in a single-page preview, falling back to the styles generated for that page.
+fn sheet_code(document: &Document, page: &Page) -> String {
+    if document.custom_css.is_empty() { emit_css(&page.elements) } else { document.custom_css.clone() }
+}
+
+/// The stylesheet written to the export folder, falling back to the styles of every page.
+fn export_sheet_code(document: &Document) -> String {
+    if document.custom_css.is_empty() { project_css(document) } else { document.custom_css.clone() }
+}
+
+/// The script written for the project, falling back to the preview script for the active page.
+fn script_code(document: &Document) -> String {
+    if document.custom_js.is_empty() { project_js(document) } else { document.custom_js.clone() }
 }
 
 pub fn write_project(document: &Document, folder: &Path) -> Result<(), String> {
     fs::create_dir_all(folder).map_err(|error| format!("Could not create export folder: {error}"))?;
-    fs::write(folder.join("styles.css"), project_css(document)).map_err(|error| format!("Could not write styles.css: {error}"))?;
-    fs::write(folder.join("script.js"), project_js(document)).map_err(|error| format!("Could not write script.js: {error}"))?;
+    fs::write(folder.join("styles.css"), export_sheet_code(document)).map_err(|error| format!("Could not write styles.css: {error}"))?;
+    fs::write(folder.join("script.js"), script_code(document)).map_err(|error| format!("Could not write script.js: {error}"))?;
     for (index, page) in document.pages.iter().enumerate() {
         let filename = if index == 0 { "index.html".to_string() } else { format!("{}.html", safe_filename(&page.slug)) };
-        fs::write(folder.join(filename), emit_html(page)).map_err(|error| format!("Could not write page {}: {error}", page.name))?;
+        fs::write(folder.join(filename), page_code(page)).map_err(|error| format!("Could not write page {}: {error}", page.name))?;
     }
     Ok(())
 }
@@ -108,11 +132,6 @@ fn css_property(property: &str) -> String {
         else { output.push(character); }
     }
     output
-}
-
-fn emit_js(elements: &[Element]) -> String {
-    let refs: Vec<&Element> = elements.iter().collect();
-    emit_js_refs(&refs)
 }
 
 fn emit_js_refs(elements: &[&Element]) -> String {

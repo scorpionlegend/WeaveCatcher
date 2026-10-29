@@ -14,6 +14,12 @@ pub struct Document {
     pub pages: Vec<Page>,
     pub active_page_id: String,
     pub settings: EditorSettings,
+    /// Project-wide style sheet used at export when non-empty; empty means "generate from the canvas".
+    #[serde(default)]
+    pub custom_css: String,
+    /// Project-wide script used at export when non-empty; empty means "generate from the canvas".
+    #[serde(default)]
+    pub custom_js: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -24,6 +30,9 @@ pub struct Page {
     pub slug: String,
     #[serde(default)]
     pub elements: Vec<Element>,
+    /// Full HTML document used at export when non-empty; empty means "generate from the canvas".
+    #[serde(default)]
+    pub custom_html: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -74,9 +83,12 @@ impl Default for Document {
                 name: "Home".into(),
                 slug: "index".into(),
                 elements: Vec::new(),
+                custom_html: String::new(),
             }],
             active_page_id: page_id,
             settings: EditorSettings { layout: "modern".into() },
+            custom_css: String::new(),
+            custom_js: String::new(),
         }
     }
 }
