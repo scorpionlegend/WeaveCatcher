@@ -173,6 +173,9 @@ button:disabled { opacity: .45; cursor: default; }
 .preset-list button span { color: #7d83df; font-size: 15px; }
 .field-label { display: flex; flex-direction: column; gap: 6px; color: #788294; font-size: 10px; font-weight: 500; }
 .field-label input, .field-label select, .field-label textarea { resize: vertical; color: #424d60; font-size: 11px; }
+.check-row { display: flex; align-items: center; gap: 7px; color: #788294; font-size: 10px; font-weight: 500; cursor: pointer; }
+.check-row input { width: 14px; height: 14px; margin: 0; accent-color: #5e65e9; }
+.canvas-node .vw-required { color: #d0453e; font-weight: 600; margin-left: 2px; }
 .settings-panel > .field-label input { margin-top: 2px; }
 .wide-row { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 10px 2px; border: 0; border-bottom: 1px solid var(--soft-line); background: #fff; color: #657084; font-size: 10px; text-align: left; }
 .wide-row:hover { color: #5d63d8; }
@@ -183,6 +186,11 @@ button:disabled { opacity: .45; cursor: default; }
 .layout-choice button.chosen { border-color: #a7aafa; background: #f9f9ff; box-shadow: 0 0 0 2px #ececff; }
 .layout-choice button strong { color: #586377; font-size: 10px; }
 .layout-choice button small { color: #9da5b1; font-size: 8px; }
+.theme-choice { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.theme-choice button { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 8px; border: 1px solid #e8eaf0; border-radius: 7px; background: #fff; text-align: left; }
+.theme-choice button.chosen { border-color: #a7aafa; background: #f9f9ff; box-shadow: 0 0 0 2px #ececff; }
+.theme-choice button strong { color: #586377; font-size: 10px; }
+.theme-choice button small { color: #9da5b1; font-size: 8px; }
 .layout-thumb { width: 100%; height: 54px; display: grid; place-items: center; border: 1px solid #eceef3; border-radius: 5px; background: #f7f8fa; color: #858ce2; font-size: 18px; }
 .update-card { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid #e8eaf0; border-radius: 7px; background: #fff; }
 .update-card strong { color: #586377; font-size: 10px; }
@@ -366,7 +374,7 @@ textarea.code-source:focus { outline: none; box-shadow: inset 2px 0 0 var(--acce
 [data-theme="dark"] .icon-rail button, [data-theme="dark"] .panel-tabs button, [data-theme="dark"] .icon-button { color: #8d96a7; }
 [data-theme="dark"] .icon-rail button:hover, [data-theme="dark"] .panel-tabs button:hover { background: #262a35; color: #aeb4ff; }
 [data-theme="dark"] .icon-rail button.active, [data-theme="dark"] .panel-tabs button.active, [data-theme="dark"] .view-switch button.active, [data-theme="dark"] .icon-button.accent, [data-theme="dark"] .layer-row.active, [data-theme="dark"] .layer-row.is-drop-target { background: #2b2f45; color: #aeb4ff; }
-[data-theme="dark"] .panel-sidebar, [data-theme="dark"] .inspector, [data-theme="dark"] .left-workbench, [data-theme="dark"] .code-panel, [data-theme="dark"] .code-footer, [data-theme="dark"] .update-card, [data-theme="dark"] .layout-choice button, [data-theme="dark"] .preset-list button, [data-theme="dark"] .preset-chips button, [data-theme="dark"] .behavior-card, [data-theme="dark"] .floating-toolbar, [data-theme="dark"] .toast, [data-theme="dark"] .modal-preview, [data-theme="dark"] .wide-row, [data-theme="dark"] .inspector-link { background: var(--panel); }
+[data-theme="dark"] .panel-sidebar, [data-theme="dark"] .inspector, [data-theme="dark"] .left-workbench, [data-theme="dark"] .code-panel, [data-theme="dark"] .code-footer, [data-theme="dark"] .update-card, [data-theme="dark"] .layout-choice button, [data-theme="dark"] .theme-choice button, [data-theme="dark"] .preset-list button, [data-theme="dark"] .preset-chips button, [data-theme="dark"] .behavior-card, [data-theme="dark"] .floating-toolbar, [data-theme="dark"] .toast, [data-theme="dark"] .modal-preview, [data-theme="dark"] .wide-row, [data-theme="dark"] .inspector-link { background: var(--panel); }
 [data-theme="dark"] .panel-heading h2, [data-theme="dark"] .inspector-heading h2, [data-theme="dark"] .code-header h2, [data-theme="dark"] .canvas-empty h2, [data-theme="dark"] .page-main strong, [data-theme="dark"] .layer-select, [data-theme="dark"] .file-row, [data-theme="dark"] .empty-panel strong { color: #ccd2de; }
 [data-theme="dark"] .panel-heading h2, [data-theme="dark"] .inspector-heading h2 { color: #e8ebf3; }
 [data-theme="dark"] .search-box { border-color: #2c313d; background: #1f232c; color: #7e8798; }
@@ -388,8 +396,8 @@ textarea.code-source:focus { outline: none; box-shadow: inset 2px 0 0 var(--acce
 [data-theme="dark"] .stage-scroll { background-color: #14161c; background-image: radial-gradient(#262a34 0.7px, transparent .7px); }
 [data-theme="dark"] .canvas-page { box-shadow: 0 2px 12px #00000059, 0 0 0 1px #262a34; }
 [data-theme="dark"] .canvas-page, [data-theme="dark"] .canvas-page * { color: initial; }
-[data-theme="dark"] .layout-choice button strong, [data-theme="dark"] .preset-list button, [data-theme="dark"] .update-card strong, [data-theme="dark"] .wide-row, [data-theme="dark"] .inspector-link, [data-theme="dark"] .toolbar-group button span { color: #b6bdcb; }
-[data-theme="dark"] .layout-choice button.chosen { border-color: #565c8f; background: #262a44; box-shadow: 0 0 0 2px #2b2f45; }
+[data-theme="dark"] .layout-choice button strong, [data-theme="dark"] .theme-choice button strong, [data-theme="dark"] .preset-list button, [data-theme="dark"] .update-card strong, [data-theme="dark"] .wide-row, [data-theme="dark"] .inspector-link, [data-theme="dark"] .toolbar-group button span { color: #b6bdcb; }
+[data-theme="dark"] .layout-choice button.chosen, [data-theme="dark"] .theme-choice button.chosen { border-color: #565c8f; background: #262a44; box-shadow: 0 0 0 2px #2b2f45; }
 [data-theme="dark"] .layout-thumb { border-color: #2c313d; background: #1f232c; color: #9ba1ff; }
 [data-theme="dark"] .preset-list button:hover, [data-theme="dark"] .preset-chips button:hover, [data-theme="dark"] .wide-row:hover, [data-theme="dark"] .inspector-link:hover { color: #aeb4ff; }
 [data-theme="dark"] .file-tree { background: #191c23; }

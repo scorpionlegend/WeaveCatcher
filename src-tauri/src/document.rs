@@ -113,6 +113,8 @@ impl Element {
             "list_item" => ("List item", "List item".into()),
             "form" => ("Form", String::new()),
             "input" => ("Input", String::new()),
+            "checkbox" => ("Checkbox", "Checkbox".into()),
+            "radio" => ("Radio button", "Option".into()),
             "divider" => ("Divider", String::new()),
             "spacer" => ("Spacer", String::new()),
             "modal" => ("Modal", "Modal content".into()),
@@ -143,6 +145,8 @@ impl Element {
         } else if kind == "input" {
             attributes.insert("placeholder".into(), "Enter text".into());
             attributes.insert("type".into(), "text".into());
+        } else if kind == "checkbox" || kind == "radio" {
+            attributes.insert("name".into(), "option".into());
         }
         let mut styles = BTreeMap::new();
         match kind {
@@ -157,6 +161,7 @@ impl Element {
             "iframe" => { styles.insert("width".into(), "560px".into()); styles.insert("height".into(), "315px".into()); styles.insert("border".into(), "0".into()); }
             "video" => { styles.insert("maxWidth".into(), "100%".into()); styles.insert("width".into(), "640px".into()); styles.insert("borderRadius".into(), "12px".into()); }
             "audio" => { styles.insert("width".into(), "100%".into()); }
+            "checkbox" | "radio" => { styles.insert("display".into(), "inline-flex".into()); styles.insert("alignItems".into(), "center".into()); styles.insert("gap".into(), "8px".into()); }
             "divider" => { styles.insert("border".into(), "0".into()); styles.insert("borderTop".into(), "1px solid #e5e8ef".into()); styles.insert("margin".into(), "24px 0".into()); }
             "spacer" => { styles.insert("height".into(), "40px".into()); }
             "modal" => { styles.insert("padding".into(), "28px".into()); styles.insert("border".into(), "1px solid #e5e8ef".into()); styles.insert("borderRadius".into(), "14px".into()); styles.insert("backgroundColor".into(), "#ffffff".into()); styles.insert("boxShadow".into(), "0 16px 50px rgba(22, 30, 48, .18)".into()); }

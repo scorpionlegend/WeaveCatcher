@@ -4,6 +4,25 @@ import { applyTheme } from "./theme";
 
 const RELEASES: { version: string; date: string; highlights: string[] }[] = [
   {
+    version: "0.1.8",
+    date: "October 29, 2026",
+    highlights: [
+      "Settings and release-notes windows now fit their window size instead of being cut off at the edge",
+      "The settings button in the title bar is now a gear icon",
+    ],
+  },
+  {
+    version: "0.1.7",
+    date: "October 29, 2026",
+    highlights: [
+      "Settings moved into its own window: open or save projects, check for updates and install them with progress",
+      "Dark mode: switch the whole app between light and dark themes, remembered between launches",
+      "Style presets: pick an element and apply quick looks like Soft card or Midnight from the new Theme panel",
+      "New Format menu with shortcuts to style presets and behaviors",
+      "Exported sites now include a media folder with copies of your images, videos and audio",
+    ],
+  },
+  {
     version: "0.1.6",
     date: "October 29, 2026",
     highlights: [
@@ -11,7 +30,6 @@ const RELEASES: { version: string; date: string; highlights: string[] }[] = [
       "Rollover images swap to a second picture on hover, in the editor and in the exported site",
       "Gallery module starts as a 3-column grid of images you can edit one by one",
       "LISTS category with unordered and ordered list modules",
-      "Settings moved into its own window, now with a theme switcher",
       "Open any folder on disk and browse its files in a resizable Files panel",
       "The title bar stays in place when switching between Classic and Modern layouts",
     ],

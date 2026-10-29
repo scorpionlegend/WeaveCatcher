@@ -4,7 +4,14 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { getVersion } from "@tauri-apps/api/app";
+import { setTheme, themePreference, type Theme } from "./theme";
 import type { DocumentModel, EditIntent } from "./types";
+
+const THEME_OPTIONS: { value: Theme; title: string; hint: string }[] = [
+  { value: "light", title: "Light", hint: "Always light" },
+  { value: "dark", title: "Dark", hint: "Always dark" },
+  { value: "system", title: "System", hint: "Match the OS" },
+];
 
 export function SettingsApp() {
   const [documentModel, setDocumentModel] = useState<DocumentModel | null>(null);
@@ -14,6 +21,7 @@ export function SettingsApp() {
   const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
   const [updateProgress, setUpdateProgress] = useState("");
   const [appVersion, setAppVersion] = useState("");
+  const [theme, setThemeState] = useState<Theme>(() => themePreference());
 
   useEffect(() => {
     let mounted = true;
@@ -62,6 +70,11 @@ export function SettingsApp() {
 
   async function openReleaseNotes() {
     try { await invoke("open_release_notes_window"); } catch (cause) { showError(cause); }
+  }
+
+  function pickTheme(next: Theme) {
+    setTheme(next);
+    setThemeState(next);
   }
 
   async function checkForUpdates(manual: boolean) {
@@ -113,6 +126,10 @@ export function SettingsApp() {
       <label class="field-label">Project name<input value={documentModel.name} onChange={(event) => void mutate({ type: "rename_project", name: event.currentTarget.value })} /></label>
       <button class="wide-row" onClick={() => void openProject()}><span>Open another project</span><b>↗</b></button>
       <button class="wide-row" onClick={() => void saveProjectAs()}><span>Save project as…</span><b>⇩</b></button>
+      <p class="section-label separated">APPEARANCE</p>
+      <div class="theme-choice">
+        {THEME_OPTIONS.map((option) => <button key={option.value} class={theme === option.value ? "chosen" : ""} onClick={() => pickTheme(option.value)}><strong>{option.title}</strong><small>{option.hint}</small></button>)}
+      </div>
       <p class="section-label separated">UPDATES</p>
       {pendingUpdate ? <div class="update-card"><strong>Version {pendingUpdate.version} is available{appVersion ? ` · you have ${appVersion}` : ""}</strong>{pendingUpdate.body && <p class="muted-copy">{pendingUpdate.body.length > 220 ? `${pendingUpdate.body.slice(0, 220)}…` : pendingUpdate.body}</p>}<button class="primary-button update-action" disabled={updateState === "downloading"} onClick={() => void installUpdate()}>{updateState === "downloading" ? updateProgress || "Downloading…" : "⇩ Download & restart"}</button></div> : <div class="update-card"><p class="muted-copy">{updateState === "checking" ? "Checking for updates…" : updateState === "current" ? "Latest version is installed." : "WeaveCatcher checks for updates when it starts."}</p><button class="wide-row" disabled={updateState === "checking"} onClick={() => void checkForUpdates(true)}><span>Check for updates</span><b>↻</b></button></div>}
       <button class="wide-row" onClick={() => void openReleaseNotes()}><span>View release — what's new</span><b>▷</b></button>

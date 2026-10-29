@@ -144,6 +144,26 @@ fn render_elements(elements: &[Element], depth: usize, output: &mut String, medi
             attrs.push_str(&format!(" {}=\"{}\"", name, escape_html(&value)));
         }
         if element.kind == "modal" { attrs.push_str(" role=\"dialog\""); }
+        let required = element.attributes.contains_key("required");
+        if element.kind == "input" && (required || !element.content.is_empty()) {
+            let mut field_attrs = String::new();
+            for (name, value) in &element.attributes {
+                if !allowed_attribute("input", name) { continue; }
+                field_attrs.push_str(&format!(" {}=\"{}\"", name, escape_html(value)));
+            }
+            let star = if required { " <span class=\"vw-required\">*</span>" } else { "" };
+            output.push_str(&format!("{indent}<label{attrs}><input{field_attrs}> {text}{star}</label>\n", field_attrs = field_attrs, text = escape_html(&element.content), star = star));
+            continue;
+        }
+        if matches!(element.kind.as_str(), "checkbox" | "radio") {
+            let kind = element.kind.as_str();
+            let field_name = element.attributes.get("name").map(String::as_str).unwrap_or("option");
+            let checked = if element.attributes.contains_key("checked") { " checked" } else { "" };
+            let required_attr = if required { " required" } else { "" };
+            let star = if required { "<span class=\"vw-required\">*</span>" } else { "" };
+            output.push_str(&format!("{indent}<label{attrs}><input type=\"{kind}\" name=\"{name}\"{checked}{required_attr}> {text}{star}</label>\n", name = escape_html(field_name), text = escape_html(&element.content), star = star));
+            continue;
+        }
         if matches!(tag, "img" | "input" | "hr") {
             output.push_str(&format!("{indent}<{tag}{attrs}>\n"));
             continue;
@@ -163,13 +183,13 @@ fn tag_for(kind: &str) -> &'static str {
     match kind {
         "section" => "section", "container" => "div", "heading" => "h2", "paragraph" => "p",
         "image" | "rollover" => "img", "gallery" => "div", "iframe" => "iframe", "video" => "video", "audio" => "audio", "button" | "link" => "a", "list" | "ul" => "ul", "ol" => "ol", "form" => "form",
-        "input" => "input", "divider" => "hr", "spacer" => "div", "modal" => "dialog", "list_item" => "li",
+        "input" => "input", "divider" => "hr", "spacer" => "div", "modal" => "dialog", "list_item" => "li", "checkbox" | "radio" => "label",
         "navbar" => "nav", "footer" => "footer", "grid" => "div", _ => "div",
     }
 }
 
 fn base_css() -> String {
-    "* { box-sizing: border-box; }\nbody { margin: 0; font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #18212f; }\n.is-hidden { display: none !important; }\n".into()
+    "* { box-sizing: border-box; }\nbody { margin: 0; font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #18212f; }\n.is-hidden { display: none !important; }\n.vw-required { color: #d0453e; font-weight: 600; }\n".into()
 }
 
 fn emit_css(elements: &[Element]) -> String {
@@ -212,9 +232,26 @@ fn emit_js_tree(elements: &[&Element], output: &mut String) {
     for element in elements {
         emit_behaviors(&element.behaviors, &element.id, output);
         if element.kind == "rollover" { emit_rollover(element, output); }
+        if element.kind == "form" { emit_form_validation(element, output); }
         let children: Vec<&Element> = element.children.iter().collect();
         emit_js_tree(&children, output);
     }
+}
+
+/// Blocks submission while a required field inside the form is empty. Buttons are
+/// anchors in exported sites, so a click listener is needed for them to trigger
+/// validation at all; the submit listener covers real submit buttons.
+fn emit_form_validation(element: &Element, output: &mut String) {
+    let selector = format!("[data-vw-id=\\\"{}\\\"]", js_string(&element.id));
+    let ident = js_identifier(&element.id);
+    output.push_str(&format!("  const form_{ident} = document.querySelector('{selector}');\n"));
+    output.push_str(&format!("  if (form_{ident}) {{\n"));
+    output.push_str(&format!("    form_{ident}.addEventListener('submit', (event) => {{ if (!form_{ident}.checkValidity()) {{ event.preventDefault(); form_{ident}.reportValidity(); }} }});\n"));
+    output.push_str(&format!("    form_{ident}.addEventListener('click', (event) => {{\n"));
+    output.push_str(&format!("      const trigger = event.target.closest('a, button');\n"));
+    output.push_str(&format!("      if (trigger && !form_{ident}.checkValidity()) {{ event.preventDefault(); form_{ident}.reportValidity(); }}\n"));
+    output.push_str("    });\n");
+    output.push_str("  }\n");
 }
 
 /// Swaps a rollover image to its hover picture on mouseenter and back on mouseleave.
@@ -270,6 +307,7 @@ fn allowed_attribute(kind: &str, name: &str) -> bool {
         "audio" => matches!(name, "src" | "controls" | "autoplay" | "loop" | "muted" | "preload" | "title"),
         "button" | "link" => matches!(name, "href" | "target" | "rel" | "title"),
         "input" => matches!(name, "type" | "placeholder" | "name" | "required" | "value" | "aria-label"),
+        "checkbox" | "radio" => matches!(name, "name" | "aria-label"),
         "form" => matches!(name, "action" | "method" | "name"),
         _ => matches!(name, "title" | "aria-label" | "role"),
     }

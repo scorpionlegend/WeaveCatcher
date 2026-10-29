@@ -89,7 +89,7 @@ const PALETTE_GROUPS: { label: string; items: readonly (readonly [string, string
   { label: "LISTS", items: [["ul", "Unordered list", "•"], ["ol", "Ordered list", "1."]] },
   { label: "HTML", items: [["heading", "Heading", "T"], ["paragraph", "Paragraph", "¶"], ["iframe", "iframe", "◫"], ["link", "Link", "↗"]] },
   { label: "NAVIGATION", items: [["navbar", "Navbar", "☰"], ["footer", "Footer", "▂"]] },
-  { label: "FORMS", items: [["form", "Form", "▤"], ["input", "Input", "▭"]] },
+  { label: "FORMS", items: [["form", "Form", "▤"], ["input", "Input", "▭"], ["checkbox", "Checkbox", "☑"], ["radio", "Radio button", "◉"]] },
   { label: "INTERACTIVE", items: [["button", "Button", "▰"], ["modal", "Modal", "▣"]] },
 ];
 const ELEMENT_INFO = PALETTE_GROUPS.flatMap((group) => group.items);
@@ -115,7 +115,7 @@ function tagFor(kind: string): string {
   const tags: Record<string, string> = {
     section: "section", container: "div", heading: "h2", paragraph: "p", image: "img", rollover: "img", gallery: "div", iframe: "iframe",
     video: "video", audio: "audio",
-    button: "a", link: "a", list: "ul", ul: "ul", ol: "ol", list_item: "li", form: "form", input: "input",
+    button: "a", link: "a", list: "ul", ul: "ul", ol: "ol", list_item: "li", form: "form", input: "input", checkbox: "label", radio: "label",
     divider: "hr", spacer: "div", modal: "div", navbar: "nav", footer: "footer", grid: "div",
   };
   return tags[kind] ?? "div";
@@ -289,6 +289,10 @@ function App() {
         event.preventDefault(); await invoke("copy_element", { id: selectedId }); setToast("Element copied");
       } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "v") {
         event.preventDefault(); await pasteElement();
+      } else if ((event.key === "Delete" || event.key === "Backspace") && selectedId && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        event.preventDefault();
+        await mutate({ type: "delete_element", id: selectedId });
+        setSelectedId(null);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -1033,6 +1037,22 @@ function CanvasElement(props: { node: ElementNode; selectedId: string | null; dr
     const iframeProps: Record<string, unknown> = { ...node.attributes, class: "iframe-embed", style: { width: "100%", height: "100%" } };
     return h("div", propsForNode, h("iframe", iframeProps), h("div", { class: "iframe-overlay" }));
   }
+  if (node.kind === "input" && (node.attributes.required !== undefined || node.content)) {
+    // A required flag or visible label upgrades the bare input to a label-wrapped field
+    // with the same structure the export produces.
+    const fieldProps: Record<string, unknown> = { ...node.attributes };
+    if (node.attributes.required !== undefined) fieldProps.required = true;
+    const nested = node.children.map((child) => <CanvasElement key={child.id} node={child} selectedId={selectedId} dropTarget={dropTarget} setDropTarget={setDropTarget} mutate={mutate} onPick={onPick} onPreview={onPreview} onDragState={onDragState} />);
+    return h("label", propsForNode, h("input", fieldProps), node.content, node.attributes.required !== undefined ? h("span", { class: "vw-required" }, "*") : null, ...nested);
+  }
+  if (node.kind === "checkbox" || node.kind === "radio") {
+    // Rendered as a label wrapping the real input so the caption text is part of the element.
+    const inputProps: Record<string, unknown> = { type: node.kind, name: node.attributes.name ?? "option" };
+    if (node.attributes.checked !== undefined) inputProps.checked = true;
+    if (node.attributes.required !== undefined) inputProps.required = true;
+    const nested = node.children.map((child) => <CanvasElement key={child.id} node={child} selectedId={selectedId} dropTarget={dropTarget} setDropTarget={setDropTarget} mutate={mutate} onPick={onPick} onPreview={onPreview} onDragState={onDragState} />);
+    return h("label", propsForNode, h("input", inputProps), node.content, node.attributes.required !== undefined ? h("span", { class: "vw-required" }, "*") : null, ...nested);
+  }
   if (node.kind === "rollover") {
     const base = String(mediaDisplayUrl(String(node.attributes.src ?? "")) ?? "");
     const hover = String(mediaDisplayUrl(String(node.attributes["data-rollover"] ?? node.attributes.src ?? "")) ?? base);
@@ -1106,7 +1126,8 @@ function Inspector(props: { element: ElementNode; mutate: (intent: EditIntent) =
       {element.kind === "iframe" && <><label class="field-label">Embed URL<input value={element.attributes.src ?? ""} placeholder="https://www.youtube.com/embed/…" onInput={(event) => attr("src", event.currentTarget.value)} /></label><label class="field-label">Title<input value={element.attributes.title ?? ""} placeholder="Embedded content" onInput={(event) => attr("title", event.currentTarget.value)} /></label></>}
       {element.kind === "video" && <label class="field-label">Poster image<input value={element.attributes.poster ?? ""} placeholder="https://…/poster.jpg" onInput={(event) => attr("poster", event.currentTarget.value)} /></label>}
       {(element.kind === "link" || element.kind === "button") && <label class="field-label">Link URL<input value={element.attributes.href ?? ""} placeholder="https://example.com" onInput={(event) => attr("href", event.currentTarget.value)} /></label>}
-      {element.kind === "input" && <><label class="field-label">Placeholder<input value={element.attributes.placeholder ?? ""} onInput={(event) => attr("placeholder", event.currentTarget.value)} /></label><label class="field-label">Input type<select value={element.attributes.type ?? "text"} onChange={(event) => attr("type", event.currentTarget.value)}><option>text</option><option>email</option><option>number</option><option>password</option></select></label></>}
+      {element.kind === "input" && <><label class="field-label">Placeholder<input value={element.attributes.placeholder ?? ""} onInput={(event) => attr("placeholder", event.currentTarget.value)} /></label><label class="field-label">Input type<select value={element.attributes.type ?? "text"} onChange={(event) => attr("type", event.currentTarget.value)}><option>text</option><option>email</option><option>number</option><option>password</option></select></label><label class="field-label">Field label<input value={element.content} placeholder="Shown next to the field" onInput={(event) => void mutate({ type: "update_content", id: element.id, content: event.currentTarget.value })} /></label><label class="check-row"><input type="checkbox" checked={element.attributes.required !== undefined} onChange={(event) => attr("required", event.currentTarget.checked ? "required" : "")} />Required</label></>}
+      {(element.kind === "checkbox" || element.kind === "radio") && <><label class="field-label">Field name<input value={element.attributes.name ?? ""} onInput={(event) => attr("name", event.currentTarget.value)} /></label><label class="check-row"><input type="checkbox" checked={element.attributes.checked !== undefined} onChange={(event) => attr("checked", event.currentTarget.checked ? "checked" : "")} />Checked by default</label><label class="check-row"><input type="checkbox" checked={element.attributes.required !== undefined} onChange={(event) => attr("required", event.currentTarget.checked ? "required" : "")} />Required</label></>}
     </div>
     <div class="inspector-section">
       <h3>Appearance</h3>
