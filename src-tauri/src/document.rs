@@ -101,9 +101,15 @@ impl Element {
             "heading" => ("Heading", "Your heading".into()),
             "paragraph" => ("Paragraph", "Add your text here. Click to edit this paragraph.".into()),
             "image" => ("Image", String::new()),
+            "rollover" => ("Rollover image", String::new()),
+            "gallery" => ("Gallery", String::new()),
+            "iframe" => ("iframe", String::new()),
+            "video" => ("Video", String::new()),
+            "audio" => ("Audio", String::new()),
             "button" => ("Button", "Button".into()),
             "link" => ("Link", "Link text".into()),
-            "list" => ("List", String::new()),
+            "list" | "ul" => ("Unordered list", String::new()),
+            "ol" => ("Ordered list", String::new()),
             "list_item" => ("List item", "List item".into()),
             "form" => ("Form", String::new()),
             "input" => ("Input", String::new()),
@@ -119,6 +125,19 @@ impl Element {
         if kind == "image" {
             attributes.insert("src".into(), "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1200&q=80".into());
             attributes.insert("alt".into(), "Workspace".into());
+        } else if kind == "rollover" {
+            attributes.insert("src".into(), "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1200&q=80".into());
+            attributes.insert("data-rollover".into(), "https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1200&q=80".into());
+            attributes.insert("alt".into(), "Rollover preview".into());
+        } else if kind == "iframe" {
+            attributes.insert("src".into(), "https://www.youtube.com/embed/aqz-KE-bpKQ".into());
+            attributes.insert("title".into(), "Embedded content".into());
+        } else if kind == "video" {
+            attributes.insert("src".into(), "https://www.w3schools.com/html/mov_bbb.mp4".into());
+            attributes.insert("controls".into(), String::new());
+        } else if kind == "audio" {
+            attributes.insert("src".into(), "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3".into());
+            attributes.insert("controls".into(), String::new());
         } else if kind == "button" || kind == "link" {
             attributes.insert("href".into(), "#".into());
         } else if kind == "input" {
@@ -133,6 +152,11 @@ impl Element {
             "paragraph" => { styles.insert("fontSize".into(), "16px".into()); styles.insert("lineHeight".into(), "1.6".into()); styles.insert("color".into(), "#596579".into()); }
             "button" => { styles.insert("backgroundColor".into(), "#5969f6".into()); styles.insert("color".into(), "#ffffff".into()); styles.insert("padding".into(), "12px 18px".into()); styles.insert("borderRadius".into(), "8px".into()); styles.insert("display".into(), "inline-block".into()); styles.insert("textDecoration".into(), "none".into()); }
             "image" => { styles.insert("maxWidth".into(), "100%".into()); styles.insert("borderRadius".into(), "12px".into()); }
+            "rollover" => { styles.insert("maxWidth".into(), "100%".into()); styles.insert("borderRadius".into(), "12px".into()); }
+            "gallery" => { styles.insert("display".into(), "grid".into()); styles.insert("gridTemplateColumns".into(), "repeat(3, 1fr)".into()); styles.insert("gap".into(), "10px".into()); }
+            "iframe" => { styles.insert("width".into(), "560px".into()); styles.insert("height".into(), "315px".into()); styles.insert("border".into(), "0".into()); }
+            "video" => { styles.insert("maxWidth".into(), "100%".into()); styles.insert("width".into(), "640px".into()); styles.insert("borderRadius".into(), "12px".into()); }
+            "audio" => { styles.insert("width".into(), "100%".into()); }
             "divider" => { styles.insert("border".into(), "0".into()); styles.insert("borderTop".into(), "1px solid #e5e8ef".into()); styles.insert("margin".into(), "24px 0".into()); }
             "spacer" => { styles.insert("height".into(), "40px".into()); }
             "modal" => { styles.insert("padding".into(), "28px".into()); styles.insert("border".into(), "1px solid #e5e8ef".into()); styles.insert("borderRadius".into(), "14px".into()); styles.insert("backgroundColor".into(), "#ffffff".into()); styles.insert("boxShadow".into(), "0 16px 50px rgba(22, 30, 48, .18)".into()); }

@@ -1,7 +1,8 @@
 use crate::commands::active_page;
 use crate::document::{Behavior, Document, Element, Page};
 use serde::Serialize;
-use std::{fs, path::Path};
+use std::collections::{HashMap, HashSet};
+use std::{fs, path::{Path, PathBuf}};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -9,16 +10,19 @@ pub struct ExportBundle { pub html: String, pub css: String, pub js: String }
 
 pub fn preview(document: &Document) -> Result<ExportBundle, String> {
     let page = active_page(document)?;
+    let mut paths = Vec::new();
+    collect_media_paths(&page.elements, &mut paths);
+    let media: HashMap<String, String> = paths.into_iter().map(|path| (path.clone(), asset_url(&path))).collect();
     Ok(ExportBundle {
-        html: page_code(page),
+        html: page_code(page, &media),
         css: sheet_code(document, page),
         js: script_code(document),
     })
 }
 
 /// The HTML written for a page: hand-edited code when the page has any, generated otherwise.
-fn page_code(page: &Page) -> String {
-    if page.custom_html.is_empty() { emit_html(page) } else { page.custom_html.clone() }
+fn page_code(page: &Page, media: &HashMap<String, String>) -> String {
+    if page.custom_html.is_empty() { emit_html(page, media) } else { page.custom_html.clone() }
 }
 
 /// The stylesheet shown in a single-page preview, falling back to the styles generated for that page.
@@ -38,13 +42,42 @@ fn script_code(document: &Document) -> String {
 
 pub fn write_project(document: &Document, folder: &Path) -> Result<(), String> {
     fs::create_dir_all(folder).map_err(|error| format!("Could not create export folder: {error}"))?;
+    let media = copy_local_media(document, folder)?;
     fs::write(folder.join("styles.css"), export_sheet_code(document)).map_err(|error| format!("Could not write styles.css: {error}"))?;
     fs::write(folder.join("script.js"), script_code(document)).map_err(|error| format!("Could not write script.js: {error}"))?;
     for (index, page) in document.pages.iter().enumerate() {
         let filename = if index == 0 { "index.html".to_string() } else { format!("{}.html", safe_filename(&page.slug)) };
-        fs::write(folder.join(filename), page_code(page)).map_err(|error| format!("Could not write page {}: {error}", page.name))?;
+        fs::write(folder.join(filename), page_code(page, &media)).map_err(|error| format!("Could not write page {}: {error}", page.name))?;
     }
     Ok(())
+}
+
+/// Copies every locally-referenced media file into <folder>/media and maps the
+/// original path to its exported relative URL.
+fn copy_local_media(document: &Document, folder: &Path) -> Result<HashMap<String, String>, String> {
+    let mut paths = Vec::new();
+    for page in &document.pages { collect_media_paths(&page.elements, &mut paths); }
+    let mut media: HashMap<String, String> = HashMap::new();
+    let mut used: HashSet<String> = HashSet::new();
+    for path in paths {
+        if media.contains_key(&path) { continue; }
+        let source = PathBuf::from(&path);
+        if !source.is_file() { continue; }
+        let original = source.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_else(|| "file".to_string());
+        let mut candidate = original.clone();
+        let mut counter = 1;
+        while used.contains(&candidate.to_lowercase()) {
+            counter += 1;
+            let dot = original.rfind('.').unwrap_or(original.len());
+            candidate = format!("{}-{}.{}", &original[..dot], counter, &original[dot + 1..]);
+        }
+        used.insert(candidate.to_lowercase());
+        let media_dir = folder.join("media");
+        fs::create_dir_all(&media_dir).map_err(|error| format!("Could not create the media folder: {error}"))?;
+        fs::copy(&source, media_dir.join(&candidate)).map_err(|error| format!("Could not copy {path}: {error}"))?;
+        media.insert(path, format!("media/{}", candidate));
+    }
+    Ok(media)
 }
 
 fn project_css(document: &Document) -> String {
@@ -59,13 +92,46 @@ fn project_js(document: &Document) -> String {
     emit_js_refs(&refs)
 }
 
-fn emit_html(page: &Page) -> String {
+fn emit_html(page: &Page, media: &HashMap<String, String>) -> String {
     let mut body = String::new();
-    render_elements(&page.elements, 2, &mut body);
+    render_elements(&page.elements, 2, &mut body, media);
     format!("<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>{}</title>\n  <link rel=\"stylesheet\" href=\"styles.css\">\n</head>\n<body>\n{}  <script src=\"script.js\" defer></script>\n</body>\n</html>\n", escape_html(&page.name), body)
 }
 
-fn render_elements(elements: &[Element], depth: usize, output: &mut String) {
+/// Media attributes on media elements may hold local file paths (chosen with the
+/// file browser); remote/data URLs are left untouched.
+fn is_media_attribute(kind: &str, name: &str) -> bool {
+    matches!(kind, "image" | "rollover" | "video" | "audio") && matches!(name, "src" | "poster" | "data-rollover")
+}
+
+fn is_remote_media(value: &str) -> bool {
+    value.is_empty() || value.starts_with("http://") || value.starts_with("https://") || value.starts_with("data:") || value.starts_with("blob:") || value.starts_with("asset:")
+}
+
+fn collect_media_paths(elements: &[Element], paths: &mut Vec<String>) {
+    for element in elements {
+        for (name, value) in &element.attributes {
+            if is_media_attribute(&element.kind, name) && !is_remote_media(value) { paths.push(value.clone()); }
+        }
+        collect_media_paths(&element.children, paths);
+    }
+}
+
+fn encode_uri_component(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for byte in value.as_bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')') { out.push(*byte as char); }
+        else { out.push_str(&format!("%{:02X}", byte)); }
+    }
+    out
+}
+
+/// Same URL shape the webview's convertFileSrc produces, so preview HTML shows local media.
+fn asset_url(path: &str) -> String {
+    if cfg!(windows) { format!("http://asset.localhost/{}", encode_uri_component(path)) } else { format!("asset://localhost/{}", encode_uri_component(path)) }
+}
+
+fn render_elements(elements: &[Element], depth: usize, output: &mut String, media: &HashMap<String, String>) {
     for element in elements {
         if element.hidden { continue; }
         let tag = tag_for(&element.kind);
@@ -74,7 +140,8 @@ fn render_elements(elements: &[Element], depth: usize, output: &mut String) {
         let mut attrs = format!(" class=\"{}\" data-vw-id=\"{}\"", class_name, escape_html(&element.id));
         for (name, value) in &element.attributes {
             if !allowed_attribute(&element.kind, name) { continue; }
-            attrs.push_str(&format!(" {}=\"{}\"", name, escape_html(value)));
+            let value = if is_media_attribute(&element.kind, name) && !is_remote_media(value) { media.get(value).cloned().unwrap_or_else(|| value.clone()) } else { value.clone() };
+            attrs.push_str(&format!(" {}=\"{}\"", name, escape_html(&value)));
         }
         if element.kind == "modal" { attrs.push_str(" role=\"dialog\""); }
         if matches!(tag, "img" | "input" | "hr") {
@@ -86,7 +153,7 @@ fn render_elements(elements: &[Element], depth: usize, output: &mut String) {
         if element.children.is_empty() { output.push_str(&format!("</{tag}>\n")); }
         else {
             output.push('\n');
-            render_elements(&element.children, depth + 1, output);
+            render_elements(&element.children, depth + 1, output, media);
             output.push_str(&format!("{indent}</{tag}>\n"));
         }
     }
@@ -95,7 +162,7 @@ fn render_elements(elements: &[Element], depth: usize, output: &mut String) {
 fn tag_for(kind: &str) -> &'static str {
     match kind {
         "section" => "section", "container" => "div", "heading" => "h2", "paragraph" => "p",
-        "image" => "img", "button" | "link" => "a", "list" => "ul", "form" => "form",
+        "image" | "rollover" => "img", "gallery" => "div", "iframe" => "iframe", "video" => "video", "audio" => "audio", "button" | "link" => "a", "list" | "ul" => "ul", "ol" => "ol", "form" => "form",
         "input" => "input", "divider" => "hr", "spacer" => "div", "modal" => "dialog", "list_item" => "li",
         "navbar" => "nav", "footer" => "footer", "grid" => "div", _ => "div",
     }
@@ -144,9 +211,22 @@ fn emit_js_refs(elements: &[&Element]) -> String {
 fn emit_js_tree(elements: &[&Element], output: &mut String) {
     for element in elements {
         emit_behaviors(&element.behaviors, &element.id, output);
+        if element.kind == "rollover" { emit_rollover(element, output); }
         let children: Vec<&Element> = element.children.iter().collect();
         emit_js_tree(&children, output);
     }
+}
+
+/// Swaps a rollover image to its hover picture on mouseenter and back on mouseleave.
+fn emit_rollover(element: &Element, output: &mut String) {
+    let selector = format!("[data-vw-id=\\\"{}\\\"]", js_string(&element.id));
+    let ident = js_identifier(&element.id);
+    output.push_str(&format!("  const roll_{ident} = document.querySelector('{selector}');\n"));
+    output.push_str(&format!("  if (roll_{ident}) {{\n"));
+    output.push_str(&format!("    const roll_base_{ident} = roll_{ident}.getAttribute('src');\n"));
+    output.push_str(&format!("    roll_{ident}.addEventListener('mouseenter', () => {{ roll_{ident}.src = roll_{ident}.getAttribute('data-rollover') || roll_base_{ident}; }});\n"));
+    output.push_str(&format!("    roll_{ident}.addEventListener('mouseleave', () => {{ roll_{ident}.src = roll_base_{ident}; }});\n"));
+    output.push_str("  }\n");
 }
 
 fn emit_behaviors(behaviors: &[Behavior], id: &str, output: &mut String) {
@@ -184,6 +264,10 @@ fn js_identifier(value: &str) -> String { value.chars().map(|ch| if ch.is_ascii_
 fn allowed_attribute(kind: &str, name: &str) -> bool {
     match kind {
         "image" => matches!(name, "src" | "alt" | "title" | "loading"),
+        "rollover" => matches!(name, "src" | "alt" | "data-rollover" | "title" | "loading"),
+        "iframe" => matches!(name, "src" | "title" | "width" | "height" | "allow" | "allowfullscreen" | "loading" | "name" | "referrerpolicy" | "sandbox"),
+        "video" => matches!(name, "src" | "poster" | "controls" | "autoplay" | "loop" | "muted" | "preload" | "title"),
+        "audio" => matches!(name, "src" | "controls" | "autoplay" | "loop" | "muted" | "preload" | "title"),
         "button" | "link" => matches!(name, "href" | "target" | "rel" | "title"),
         "input" => matches!(name, "type" | "placeholder" | "name" | "required" | "value" | "aria-label"),
         "form" => matches!(name, "action" | "method" | "name"),

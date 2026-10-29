@@ -29,7 +29,20 @@ pub fn apply(document: &mut Document, intent: EditIntent) -> Result<(), String> 
     match intent {
         EditIntent::AddElement { kind, parent_id, index } => {
             let mut element = Element::new(&kind);
-            if kind == "list" { element.children = vec![Element::new("list_item"), Element::new("list_item")]; }
+            if matches!(kind.as_str(), "list" | "ul" | "ol") { element.children = vec![Element::new("list_item"), Element::new("list_item")]; }
+            if kind == "gallery" {
+                let photos = [
+                    ("https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=800&q=80", "Gallery image 1"),
+                    ("https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=800&q=80", "Gallery image 2"),
+                    ("https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=800&q=80", "Gallery image 3"),
+                ];
+                element.children = photos.iter().map(|(src, alt)| {
+                    let mut image = Element::new("image");
+                    image.attributes.insert("src".into(), (*src).into());
+                    image.attributes.insert("alt".into(), (*alt).into());
+                    image
+                }).collect();
+            }
             if kind == "navbar" {
                 element.children = ["Home", "About", "Contact"].iter().map(|label| {
                     let mut link = Element::new("link");
