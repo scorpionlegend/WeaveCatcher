@@ -1,6 +1,6 @@
 [package]
 name = "weavecatcher"
-version = "0.1.3"
+version = "0.1.4"
 description = "A visual website builder for desktop"
 authors = ["WeaveCatcher contributors"]
 edition = "2021"

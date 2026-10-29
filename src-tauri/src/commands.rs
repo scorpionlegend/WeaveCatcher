@@ -28,6 +28,23 @@ pub fn apply(document: &mut Document, intent: EditIntent) -> Result<(), String> 
         EditIntent::AddElement { kind, parent_id, index } => {
             let mut element = Element::new(&kind);
             if kind == "list" { element.children = vec![Element::new("list_item"), Element::new("list_item")]; }
+            if kind == "navbar" {
+                element.children = ["Home", "About", "Contact"].iter().map(|label| {
+                    let mut link = Element::new("link");
+                    link.content = (*label).into();
+                    link
+                }).collect();
+            }
+            if kind == "grid" {
+                element.children = (0..2).map(|_| Element::new("container")).collect();
+                for child in &mut element.children {
+                    child.styles.clear();
+                    child.styles.insert("minHeight".into(), "120px".into());
+                    child.styles.insert("backgroundColor".into(), "#f4f5fb".into());
+                    child.styles.insert("border".into(), "1px dashed #c9cede".into());
+                    child.styles.insert("borderRadius".into(), "10px".into());
+                }
+            }
             let page = active_page_mut(document)?;
             insert_element(&mut page.elements, parent_id.as_deref(), index.unwrap_or(usize::MAX), element)?;
         }

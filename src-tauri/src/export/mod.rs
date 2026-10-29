@@ -72,7 +72,8 @@ fn tag_for(kind: &str) -> &'static str {
     match kind {
         "section" => "section", "container" => "div", "heading" => "h2", "paragraph" => "p",
         "image" => "img", "button" | "link" => "a", "list" => "ul", "form" => "form",
-        "input" => "input", "divider" => "hr", "spacer" => "div", "modal" => "dialog", "list_item" => "li", _ => "div",
+        "input" => "input", "divider" => "hr", "spacer" => "div", "modal" => "dialog", "list_item" => "li",
+        "navbar" => "nav", "footer" => "footer", "grid" => "div", _ => "div",
     }
 }
 

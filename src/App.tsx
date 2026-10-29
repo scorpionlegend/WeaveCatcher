@@ -10,13 +10,16 @@ import type { Behavior, DocumentModel, EditIntent, ElementNode, ExportBundle } f
 
 type Panel = "add" | "pages" | "layers" | "behaviors" | "theme" | "settings";
 type CodeTab = "html" | "css" | "js";
-const PALETTE = [
-  ["section", "Section", "▱"], ["container", "Container", "▧"], ["heading", "Heading", "T"],
-  ["paragraph", "Paragraph", "¶"], ["image", "Image", "▧"], ["button", "Button", "▰"],
-  ["link", "Link", "↗"], ["list", "List", "☷"], ["form", "Form", "▤"],
-  ["input", "Input", "▭"], ["divider", "Divider", "―"], ["spacer", "Spacer", "↕"],
-  ["modal", "Modal", "▣"],
-] as const;
+type ViewMode = "canvas" | "split" | "code";
+const PALETTE_GROUPS: { label: string; items: readonly (readonly [string, string, string])[] }[] = [
+  { label: "LAYOUT", items: [["section", "Section", "▱"], ["container", "Container", "▧"], ["grid", "Grid", "▦"], ["spacer", "Spacer", "↕"], ["divider", "Divider", "―"]] },
+  { label: "HTML", items: [["heading", "Heading", "T"], ["paragraph", "Paragraph", "¶"], ["image", "Image", "▧"], ["list", "List", "☷"], ["link", "Link", "↗"]] },
+  { label: "NAVIGATION", items: [["navbar", "Navbar", "☰"], ["footer", "Footer", "▂"]] },
+  { label: "FORMS", items: [["form", "Form", "▤"], ["input", "Input", "▭"]] },
+  { label: "INTERACTIVE", items: [["button", "Button", "▰"], ["modal", "Modal", "▣"]] },
+];
+const ELEMENT_INFO = PALETTE_GROUPS.flatMap((group) => group.items);
+const VIEW_MODES: readonly ViewMode[] = ["canvas", "split", "code"];
 
 function allElements(elements: ElementNode[]): ElementNode[] {
   return elements.flatMap((element) => [element, ...allElements(element.children)]);
@@ -36,9 +39,18 @@ function tagFor(kind: string): string {
   const tags: Record<string, string> = {
     section: "section", container: "div", heading: "h2", paragraph: "p", image: "img",
     button: "a", link: "a", list: "ul", list_item: "li", form: "form", input: "input",
-    divider: "hr", spacer: "div", modal: "div",
+    divider: "hr", spacer: "div", modal: "div", navbar: "nav", footer: "footer", grid: "div",
   };
   return tags[kind] ?? "div";
+}
+
+function findLocation(elements: ElementNode[], id: string, parentId: string | null = null): { parentId: string | null; index: number; count: number } | undefined {
+  for (let index = 0; index < elements.length; index++) {
+    if (elements[index].id === id) return { parentId, index, count: elements.length };
+    const nested = findLocation(elements[index].children, id, elements[index].id);
+    if (nested) return nested;
+  }
+  return undefined;
 }
 
 function App() {
@@ -46,7 +58,7 @@ function App() {
   const [dirty, setDirty] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activePanel, setActivePanel] = useState<Panel>("add");
-  const [showCode, setShowCode] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("canvas");
   const [codeTab, setCodeTab] = useState<CodeTab>("html");
   const [code, setCode] = useState<ExportBundle>({ html: "", css: "", js: "" });
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -65,6 +77,8 @@ function App() {
 
   const page = useMemo(() => documentModel?.pages.find((item) => item.id === documentModel.activePageId), [documentModel]);
   const selected = useMemo(() => page && findElement(page.elements, selectedId), [page, selectedId]);
+  const selectedLocation = useMemo(() => (page && selectedId ? findLocation(page.elements, selectedId) : undefined), [page, selectedId]);
+  const [paletteSearch, setPaletteSearch] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -134,9 +148,9 @@ function App() {
   }
 
   useEffect(() => {
-    if (!showCode) return;
+    if (viewMode === "canvas") return;
     invoke<ExportBundle>("get_export_preview").then(setCode).catch(showError);
-  }, [documentModel, showCode]);
+  }, [documentModel, viewMode]);
 
   useEffect(() => {
     const onKeyDown = async (event: KeyboardEvent) => {
@@ -315,14 +329,14 @@ function App() {
         <nav class="menu-row" aria-label="Main menu">
           <details class="menu"><summary>File</summary><div class="menu-pop"><button onClick={newProject}>New project</button><button onClick={openProject}>Open project…</button><button onClick={() => void saveProject()}>Save</button><button onClick={() => void saveProject(true)}>Save as…</button><hr /><button onClick={exportToFolder}>Export website…</button></div></details>
           <details class="menu"><summary>Edit</summary><div class="menu-pop"><button onClick={() => void travelHistory("undo_document")}>Undo <kbd>⌘Z</kbd></button><button onClick={() => void travelHistory("redo_document")}>Redo <kbd>⇧⌘Z</kbd></button><button onClick={() => selectedId && void mutate({ type: "duplicate_element", id: selectedId })}>Duplicate</button><button onClick={() => void pasteElement()}>Paste</button></div></details>
-          <details class="menu"><summary>Insert</summary><div class="menu-pop">{PALETTE.slice(0, 8).map(([kind, label]) => <button key={kind} onClick={() => addElement(kind)}>{label}</button>)}</div></details>
+          <details class="menu"><summary>Insert</summary><div class="menu-pop">{ELEMENT_INFO.map(([kind, label]) => <button key={kind} onClick={() => addElement(kind)}>{label}</button>)}</div></details>
           <details class="menu"><summary>Format</summary><div class="menu-pop"><button onClick={() => setActivePanel("theme")}>Style presets</button><button onClick={() => setActivePanel("behaviors")}>Behaviors…</button></div></details>
-          <details class="menu"><summary>View</summary><div class="menu-pop"><button onClick={() => setShowCode(!showCode)}>{showCode ? "Hide" : "Show"} code view</button><button onClick={() => setLayout(documentModel.settings.layout === "classic" ? "modern" : "classic")}>Switch toolbar style</button></div></details>
+          <details class="menu"><summary>View</summary><div class="menu-pop"><button onClick={() => setViewMode("canvas")}>Canvas only{viewMode === "canvas" ? " ✓" : ""}</button><button onClick={() => setViewMode("split")}>Split view{viewMode === "split" ? " ✓" : ""}</button><button onClick={() => setViewMode("code")}>Code only{viewMode === "code" ? " ✓" : ""}</button><hr /><button onClick={() => setLayout(documentModel.settings.layout === "classic" ? "modern" : "classic")}>Switch toolbar style</button></div></details>
         </nav>
       </> : <div class="project-title"><details class="project-menu"><summary><strong>{documentModel.name}</strong><span>⌄</span></summary><div class="menu-pop"><button onClick={newProject}>New project</button><button onClick={openProject}>Open project…</button><button onClick={() => void saveProject(true)}>Save as…</button><hr /><button onClick={exportToFolder}>Export website…</button></div></details><span>·</span><span>{page?.name ?? "No page"}</span></div>}
       <div class="top-actions">
         <button class="quiet-button layout-switch" title="Switch editor layout" onClick={() => setLayout(documentModel.settings.layout === "classic" ? "modern" : "classic")}><span>◐</span>{documentModel.settings.layout === "classic" ? "Modern" : "Classic"}</button>
-        <button class="quiet-button" onClick={() => setShowCode(!showCode)} title="Toggle generated code">{showCode ? "Canvas" : "Code"}</button>
+        <button class="quiet-button" onClick={() => setViewMode(viewMode === "canvas" ? "split" : viewMode === "split" ? "code" : "canvas")} title="Cycle canvas / split / code view">{viewMode === "canvas" ? "Canvas" : viewMode === "split" ? "Split" : "Code"}</button>
         <button class="quiet-button" onClick={() => void saveProject()} title="Save project">Save</button>
         <button class="quiet-button export-action" onClick={exportToFolder} title="Export website files">Export</button>
         <button class="primary-button" onClick={() => void previewSite()}><span>▷</span> Preview</button>
@@ -346,9 +360,16 @@ function App() {
           {documentModel.settings.layout === "classic" && <div class="panel-tabs">{panelButtons.map((item) => <button key={item.id} class={activePanel === item.id ? "active" : ""} onClick={() => setActivePanel(item.id)}>{item.label}</button>)}</div>}
           <div class="panel-heading"><div><span class="eyebrow">WORKSPACE</span><h2>{panelButtons.find((item) => item.id === activePanel)?.label}</h2></div><button class="icon-button small" title="Collapse panel" onClick={() => setActivePanel("add")}>‹</button></div>
           {activePanel === "add" && <div class="panel-content palette-panel">
-            <label class="search-box"><span>⌕</span><input placeholder="Find an element" aria-label="Find an element" onInput={(event) => { const term = event.currentTarget.value.toLowerCase(); document.querySelectorAll<HTMLElement>(".palette-item").forEach((item) => { item.hidden = !item.dataset.label?.includes(term); }); }} /></label>
-            <p class="section-label">BASIC ELEMENTS</p>
-            <div class="palette-grid">{PALETTE.map(([kind, label, icon]) => <button key={kind} class="palette-item" data-label={label.toLowerCase()} draggable onDragStart={(event) => { event.dataTransfer?.setData("application/x-vw-kind", kind); setDraggingKind(kind); }} onDragEnd={() => setDraggingKind(null)} onClick={() => addElement(kind)}><span class="palette-icon">{icon}</span><span>{label}</span><span class="drag-grip">⠿</span></button>)}</div>
+            <label class="search-box"><span>⌕</span><input placeholder="Find an element" aria-label="Find an element" value={paletteSearch} onInput={(event) => setPaletteSearch(event.currentTarget.value.toLowerCase())} /></label>
+            {PALETTE_GROUPS.map((group) => {
+              const items = group.items.filter(([, label]) => label.toLowerCase().includes(paletteSearch));
+              if (!items.length) return null;
+              return <div class="palette-group" key={group.label}>
+                <p class="section-label">{group.label}</p>
+                <div class="palette-grid">{items.map(([kind, label, icon]) => <button key={kind} class="palette-item" data-label={label.toLowerCase()} draggable onDragStart={(event) => { event.dataTransfer?.setData("application/x-vw-kind", kind); setDraggingKind(kind); }} onDragEnd={() => setDraggingKind(null)} onClick={() => addElement(kind)}><span class="palette-icon">{icon}</span><span>{label}</span><span class="drag-grip">⠿</span></button>)}</div>
+              </div>;
+            })}
+            {!ELEMENT_INFO.some(([, label]) => label.toLowerCase().includes(paletteSearch)) && <div class="empty-panel"><span>⌕</span><strong>No elements found</strong><p>Try a different search term.</p></div>}
             <div class="tip-card"><span>✦</span><div><strong>Build with blocks</strong><p>Drag an element onto the canvas, or click to add it.</p></div></div>
           </div>}
           {activePanel === "pages" && <div class="panel-content pages-panel"><div class="panel-section-title"><span>YOUR PAGES</span><button class="icon-button small accent" title="Add page" onClick={() => void mutate({ type: "add_page", name: `Page ${documentModel.pages.length + 1}` })}>＋</button></div>
@@ -365,16 +386,16 @@ function App() {
       </aside>
 
       <main class="canvas-area">
-        <div class="canvas-toolbar"><div class="breadcrumb"><button onClick={() => setSelectedId(null)}>{documentModel.name}</button><span>/</span><button onClick={() => setSelectedId(null)}>{page?.name}</button>{selected && <><span>/</span><strong>{selected.name}</strong></>}</div><div class="canvas-tools"><span class={`saved-state ${dirty ? "unsaved" : ""}`}><i /> {dirty ? "Unsaved changes" : "All changes saved"}</span><i class="tool-divider" /><button class="icon-button" title="Zoom out" onClick={() => setToast("Canvas zoom: 100%")}>−</button><span class="zoom-label">100%</span><button class="icon-button" title="Zoom in" onClick={() => setToast("Canvas zoom: 100%")}>＋</button><button class="icon-button" title="Toggle code view" onClick={() => setShowCode(!showCode)}>{showCode ? "◫" : "▤"}</button></div></div>
-        <div class={`editor-workarea ${showCode ? "with-code" : ""}`}>
+        <div class="canvas-toolbar"><div class="breadcrumb"><button onClick={() => setSelectedId(null)}>{documentModel.name}</button><span>/</span><button onClick={() => setSelectedId(null)}>{page?.name}</button>{selected && <><span>/</span><strong>{selected.name}</strong></>}</div><div class="canvas-tools"><span class={`saved-state ${dirty ? "unsaved" : ""}`}><i /> {dirty ? "Unsaved changes" : "All changes saved"}</span><i class="tool-divider" /><div class="view-switch" role="tablist" aria-label="Editor view">{VIEW_MODES.map((mode) => <button key={mode} role="tab" aria-selected={viewMode === mode} class={viewMode === mode ? "active" : ""} onClick={() => setViewMode(mode)}>{mode === "canvas" ? "Canvas" : mode === "split" ? "Split" : "Code"}</button>)}</div><i class="tool-divider" /><button class="icon-button" title="Zoom out" onClick={() => setToast("Canvas zoom: 100%")}>−</button><span class="zoom-label">100%</span><button class="icon-button" title="Zoom in" onClick={() => setToast("Canvas zoom: 100%")}>＋</button></div></div>
+        <div class={`editor-workarea ${viewMode !== "canvas" ? "with-code" : ""} ${viewMode === "code" ? "mode-code" : ""}`}>
           <div class="stage-scroll" ref={stageRef} onClick={() => { setSelectedId(null); setContextPoint(null); }} onDragOver={(event) => { event.preventDefault(); setDropTarget("root"); }} onDrop={(event) => { onRootDrop(event); setDropTarget(null); }}>
             <div class={`canvas-page ${dropTarget === "root" && draggingKind ? "root-drop-target" : ""}`}>
               {elements.length ? elements.map((element) => <CanvasElement key={element.id} node={element} selectedId={selectedId} dropTarget={dropTarget} setDropTarget={setDropTarget} mutate={mutate} onPick={pickElement} onPreview={previewBehavior} onDragState={(id, kind) => { setDraggingId(id); setDraggingKind(kind); }} />) : <div class="canvas-empty"><div class="empty-art"><span>＋</span><i /><b /><em /></div><h2>Your canvas is ready</h2><p>Drag an element here or add your first block from the panel.</p><button class="primary-button" onClick={() => void addElement("section")}>＋ Add a section</button></div>}
-              {selected && contextPoint && <div class="floating-toolbar" style={{ left: `${contextPoint.x}px`, top: `${contextPoint.y}px` }} onClick={(event) => event.stopPropagation()}><span class="floating-name">{selected.name}</span><button title="Duplicate" onClick={() => void mutate({ type: "duplicate_element", id: selected.id })}>⧉</button><button title="Delete" onClick={() => { void mutate({ type: "delete_element", id: selected.id }); setSelectedId(null); }}>⌫</button><button title="Open behavior settings" onClick={() => setActivePanel("behaviors")}>⌁</button></div>}
+              {selected && contextPoint && <div class="floating-toolbar" style={{ left: `${contextPoint.x}px`, top: `${contextPoint.y}px` }} onClick={(event) => event.stopPropagation()}><span class="floating-name">{selected.name}</span><button title="Move up" disabled={!selectedLocation || selectedLocation.index === 0} onClick={() => selectedLocation && void mutate({ type: "move_element", id: selected.id, parentId: selectedLocation.parentId, index: selectedLocation.index - 1 })}>↑</button><button title="Move down" disabled={!selectedLocation || selectedLocation.index >= selectedLocation.count - 1} onClick={() => selectedLocation && void mutate({ type: "move_element", id: selected.id, parentId: selectedLocation.parentId, index: selectedLocation.index + 1 })}>↓</button><button title="Duplicate" onClick={() => void mutate({ type: "duplicate_element", id: selected.id })}>⧉</button><button title="Delete" onClick={() => { void mutate({ type: "delete_element", id: selected.id }); setSelectedId(null); }}>⌫</button><button title="Open behavior settings" onClick={() => setActivePanel("behaviors")}>⌁</button></div>}
               {modalPreview && <div class="modal-preview-backdrop" onClick={() => setModalPreview(null)}><div class="modal-preview" onClick={(event) => event.stopPropagation()}><button class="modal-close" onClick={() => setModalPreview(null)}>×</button><span class="eyebrow">INTERACTION PREVIEW</span><h3>{findElement(elements, modalPreview)?.content || "Modal preview"}</h3><p>This dialog demonstrates the configured modal behavior.</p><button class="primary-button" onClick={() => setModalPreview(null)}>Close</button></div></div>}
             </div>
           </div>
-          {showCode && <section class="code-panel"><div class="code-header"><div><span class="eyebrow">GENERATED CODE</span><h2>Page source</h2></div><button class="icon-button" onClick={() => setShowCode(false)} title="Close code view">×</button></div><div class="code-tabs">{(["html", "css", "js"] as const).map((tab) => <button class={codeTab === tab ? "active" : ""} onClick={() => setCodeTab(tab)}>{tab === "html" ? "index.html" : tab === "js" ? "script.js" : "styles.css"}</button>)}</div><pre class="code-source"><code>{code[codeTab]}</code></pre></section>}
+          {viewMode !== "canvas" && <section class="code-panel"><div class="code-header"><div><span class="eyebrow">GENERATED CODE</span><h2>Page source</h2></div><button class="icon-button" onClick={() => setViewMode("canvas")} title="Close code view">×</button></div><div class="code-tabs">{(["html", "css", "js"] as const).map((tab) => <button class={codeTab === tab ? "active" : ""} onClick={() => setCodeTab(tab)}>{tab === "html" ? "index.html" : tab === "js" ? "script.js" : "styles.css"}</button>)}</div><pre class="code-source"><code>{code[codeTab]}</code></pre></section>}
         </div>
         <footer class="statusbar"><span><i class="status-dot" /> {page?.name ?? "No page"}</span><span>{elementCount} element{elementCount === 1 ? "" : "s"}</span><span class="status-spacer" /><span>HTML · CSS · JavaScript</span></footer>
       </main>
@@ -413,7 +434,7 @@ function CanvasElement(props: { node: ElementNode; selectedId: string | null; dr
 function LayerItem(props: { element: ElementNode; depth: number; index: number; parentId: string | null; siblingIds: string[]; selectedId: string | null; select: (id: string) => void; mutate: (intent: EditIntent) => Promise<DocumentModel | undefined> }) {
   const { element, depth, index, parentId, siblingIds, selectedId, select, mutate } = props;
   const [expanded, setExpanded] = useState(true);
-  return <div class="layer-branch"><div class={`layer-row ${selectedId === element.id ? "active" : ""}`} style={{ paddingLeft: `${10 + depth * 16}px` }} draggable onDragStart={(event) => { event.dataTransfer?.setData("application/x-vw-element", element.id); event.dataTransfer?.setData("text/plain", element.id); event.stopPropagation(); }} onDragOver={(event) => { event.preventDefault(); event.stopPropagation(); event.currentTarget.classList.add("is-drop-target"); }} onDragLeave={(event) => event.currentTarget.classList.remove("is-drop-target")} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); const movingId = event.dataTransfer?.getData("application/x-vw-element"); if (movingId && movingId !== element.id) { const oldIndex = siblingIds.indexOf(movingId); const destination = index - (oldIndex !== -1 && oldIndex < index ? 1 : 0); void mutate({ type: "move_element", id: movingId, parentId, index: destination }); } event.currentTarget.classList.remove("is-drop-target"); }}><button class="layer-expand" onClick={() => setExpanded(!expanded)}>{element.children.length ? expanded ? "⌄" : "›" : "·"}</button><button class="layer-select" onClick={() => select(element.id)}><span class="layer-kind">{PALETTE.find(([kind]) => kind === element.kind)?.[2] ?? "▧"}</span><span class={element.hidden ? "muted" : ""}>{element.name}</span></button><button class="layer-action" title={element.hidden ? "Show element" : "Hide element"} onClick={() => void mutate({ type: "set_hidden", id: element.id, hidden: !element.hidden })}>{element.hidden ? "◉" : "◌"}</button><button class="layer-action" title="Rename" onClick={() => { const name = window.prompt("Layer name", element.name); if (name?.trim()) void mutate({ type: "rename_element", id: element.id, name: name.trim() }); }}>✎</button></div>{expanded && element.children.map((child, childIndex) => <LayerItem key={child.id} element={child} depth={depth + 1} index={childIndex} parentId={element.id} siblingIds={element.children.map((item) => item.id)} selectedId={selectedId} select={select} mutate={mutate} />)}</div>;
+  return <div class="layer-branch"><div class={`layer-row ${selectedId === element.id ? "active" : ""}`} style={{ paddingLeft: `${10 + depth * 16}px` }} draggable onDragStart={(event) => { event.dataTransfer?.setData("application/x-vw-element", element.id); event.dataTransfer?.setData("text/plain", element.id); event.stopPropagation(); }} onDragOver={(event) => { event.preventDefault(); event.stopPropagation(); event.currentTarget.classList.add("is-drop-target"); }} onDragLeave={(event) => event.currentTarget.classList.remove("is-drop-target")} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); const movingId = event.dataTransfer?.getData("application/x-vw-element"); if (movingId && movingId !== element.id) { const oldIndex = siblingIds.indexOf(movingId); const destination = index - (oldIndex !== -1 && oldIndex < index ? 1 : 0); void mutate({ type: "move_element", id: movingId, parentId, index: destination }); } event.currentTarget.classList.remove("is-drop-target"); }}><button class="layer-expand" onClick={() => setExpanded(!expanded)}>{element.children.length ? expanded ? "⌄" : "›" : "·"}</button><button class="layer-select" onClick={() => select(element.id)}><span class="layer-kind">{ELEMENT_INFO.find(([kind]) => kind === element.kind)?.[2] ?? "▧"}</span><span class={element.hidden ? "muted" : ""}>{element.name}</span></button><button class="layer-action" title={element.hidden ? "Show element" : "Hide element"} onClick={() => void mutate({ type: "set_hidden", id: element.id, hidden: !element.hidden })}>{element.hidden ? "◉" : "◌"}</button><button class="layer-action" title="Rename" onClick={() => { const name = window.prompt("Layer name", element.name); if (name?.trim()) void mutate({ type: "rename_element", id: element.id, name: name.trim() }); }}>✎</button></div>{expanded && element.children.map((child, childIndex) => <LayerItem key={child.id} element={child} depth={depth + 1} index={childIndex} parentId={element.id} siblingIds={element.children.map((item) => item.id)} selectedId={selectedId} select={select} mutate={mutate} />)}</div>;
 }
 
 function Inspector(props: { element: ElementNode; mutate: (intent: EditIntent) => Promise<DocumentModel | undefined> }) {
@@ -461,6 +482,10 @@ function Inspector(props: { element: ElementNode; mutate: (intent: EditIntent) =
         <label class="field-label">Gap<input value={element.styles.gap ?? ""} placeholder="12px" onInput={(event) => style("gap", event.currentTarget.value)} /></label>
       </div>
       <label class="field-label">Grid columns<input value={element.styles.gridTemplateColumns ?? ""} placeholder="repeat(2, 1fr)" onInput={(event) => style("gridTemplateColumns", event.currentTarget.value)} /></label>
+      {element.kind === "grid" && <>
+        <label class="field-label">Columns<div class="preset-chips">{[1, 2, 3, 4].map((count) => <button class={element.styles.gridTemplateColumns === `repeat(${count}, 1fr)` ? "active" : ""} onClick={() => style("gridTemplateColumns", `repeat(${count}, 1fr)`)}>{count}</button>)}</div></label>
+        <label class="field-label">Spacing between cells<div class="preset-chips">{["0px", "8px", "16px", "24px", "32px"].map((gap) => <button class={element.styles.gap === gap ? "active" : ""} onClick={() => style("gap", gap)}>{parseInt(gap) || 0}</button>)}</div></label>
+      </>}
       <div class="two-fields">
         <label class="field-label">Justify<select value={element.styles.justifyContent ?? "flex-start"} onChange={(event) => style("justifyContent", event.currentTarget.value)}><option value="flex-start">Start</option><option value="center">Center</option><option value="space-between">Space between</option><option value="space-around">Space around</option><option value="flex-end">End</option></select></label>
         <label class="field-label">Align<select value={element.styles.alignItems ?? "stretch"} onChange={(event) => style("alignItems", event.currentTarget.value)}><option value="stretch">Stretch</option><option value="center">Center</option><option value="flex-start">Start</option><option value="flex-end">End</option></select></label>

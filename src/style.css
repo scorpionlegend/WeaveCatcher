@@ -92,6 +92,12 @@ button:disabled { opacity: .45; cursor: default; }
 .search-box input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: #394457; font-size: 11px; }
 .search-box input::placeholder { color: #a0a8b5; }
 .section-label { margin: 20px 0 10px; color: #9ca4b2; font-size: 9px; font-weight: 700; letter-spacing: .95px; }
+.palette-group:first-of-type .section-label { margin-top: 14px; }
+.preset-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.preset-chips button { min-width: 26px; padding: 4px 7px; border: 1px solid #e8eaf0; border-radius: 6px; background: #fff; color: #586477; font-size: 10px; }
+.preset-chips button:hover { border-color: #c3c5f4; background: #fafaff; }
+.preset-chips button.active { border-color: #b9bcff; background: #eff0ff; color: #565ed2; font-weight: 600; }
+.field-label .preset-chips { margin-top: 4px; }
 .palette-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .palette-item { position: relative; min-width: 0; height: 47px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 1px solid #eceef2; border-radius: 7px; background: #fff; color: #5a6577; font-size: 10px; text-align: left; transition: border-color .15s, box-shadow .15s, transform .15s; }
 .palette-item:hover { transform: translateY(-1px); border-color: #b9bcff; box-shadow: 0 3px 9px #5258cc13; color: #434ac0; }
@@ -195,6 +201,12 @@ button:disabled { opacity: .45; cursor: default; }
 .canvas-tools .icon-button { width: 25px; height: 25px; font-size: 13px; }
 .zoom-label { min-width: 33px; color: #818b9b; font-size: 9px; text-align: center; }
 .editor-workarea { min-height: 0; flex: 1; display: flex; overflow: hidden; }
+.view-switch { display: flex; gap: 2px; padding: 2px; border: 1px solid #e5e7ee; border-radius: 7px; background: #fff; }
+.view-switch button { padding: 4px 11px; border: 0; border-radius: 5px; background: transparent; color: #8a92a3; font-size: 10px; font-weight: 500; }
+.view-switch button:hover { color: var(--ink); background: #f2f3f7; }
+.view-switch button.active { background: #eff0ff; color: #565ed2; font-weight: 600; }
+.editor-workarea.mode-code .stage-scroll { display: none; }
+.editor-workarea.mode-code .code-panel { flex: 1 1 100%; border-left: 0; }
 .stage-scroll { position: relative; min-width: 0; flex: 1; overflow: auto; padding: 30px 28px; background-color: #f4f5f8; background-image: radial-gradient(#e0e3ea 0.7px, transparent .7px); background-size: 15px 15px; }
 .canvas-page { position: relative; min-height: 100%; width: 100%; margin: 0 auto; padding: 0; overflow: visible; background: #fff; box-shadow: 0 2px 12px #1a23380c, 0 0 0 1px #dce0e8; }
 .canvas-page.root-drop-target { outline: 2px dashed #858af0; outline-offset: 4px; }

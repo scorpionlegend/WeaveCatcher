@@ -98,6 +98,9 @@ impl Element {
             "divider" => ("Divider", String::new()),
             "spacer" => ("Spacer", String::new()),
             "modal" => ("Modal", "Modal content".into()),
+            "navbar" => ("Navbar", String::new()),
+            "footer" => ("Footer", "© 2026 Your Company".into()),
+            "grid" => ("Grid", String::new()),
             _ => ("Element", String::new()),
         };
         let mut attributes = BTreeMap::new();
@@ -121,6 +124,9 @@ impl Element {
             "divider" => { styles.insert("border".into(), "0".into()); styles.insert("borderTop".into(), "1px solid #e5e8ef".into()); styles.insert("margin".into(), "24px 0".into()); }
             "spacer" => { styles.insert("height".into(), "40px".into()); }
             "modal" => { styles.insert("padding".into(), "28px".into()); styles.insert("border".into(), "1px solid #e5e8ef".into()); styles.insert("borderRadius".into(), "14px".into()); styles.insert("backgroundColor".into(), "#ffffff".into()); styles.insert("boxShadow".into(), "0 16px 50px rgba(22, 30, 48, .18)".into()); }
+            "navbar" => { styles.insert("display".into(), "flex".into()); styles.insert("justifyContent".into(), "space-between".into()); styles.insert("alignItems".into(), "center".into()); styles.insert("padding".into(), "14px 24px".into()); styles.insert("backgroundColor".into(), "#ffffff".into()); styles.insert("borderBottom".into(), "1px solid #e5e8ef".into()); }
+            "footer" => { styles.insert("padding".into(), "28px 32px".into()); styles.insert("backgroundColor".into(), "#18212f".into()); styles.insert("color".into(), "#ffffff".into()); styles.insert("textAlign".into(), "center".into()); }
+            "grid" => { styles.insert("display".into(), "grid".into()); styles.insert("gridTemplateColumns".into(), "repeat(2, 1fr)".into()); styles.insert("gap".into(), "16px".into()); styles.insert("padding".into(), "8px".into()); }
             _ => {}
         }
         Self { id: new_id(), kind: kind.into(), name: name.into(), content, attributes, styles, behaviors: Vec::new(), hidden: false, children: Vec::new() }
