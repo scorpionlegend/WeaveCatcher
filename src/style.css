@@ -18,6 +18,9 @@
 * { box-sizing: border-box; }
 html, body, #app { width: 100%; min-width: 1040px; height: 100%; min-height: 680px; margin: 0; }
 body { overflow: hidden; font-size: 13px; }
+/* Secondary windows (settings, release notes) size freely instead of using the main window's minimums. */
+html[data-window] { min-width: 0; min-height: 0; }
+html[data-window] body, html[data-window] #app { min-width: 0; min-height: 0; }
 button, input, select, textarea { font: inherit; }
 button { color: inherit; cursor: pointer; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid #9398ff; outline-offset: 1px; }
@@ -317,6 +320,7 @@ textarea.code-source:focus { outline: none; box-shadow: inset 2px 0 0 var(--acce
 
 .settings-window { position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; background: #f5f6f9; overflow: hidden; }
 .settings-window > .panel-content { flex: 1; min-height: 0; }
+.settings-panel { max-width: 560px; width: 100%; margin: 0 auto; }
 
 .file-tree { display: flex; flex-direction: column; overflow: hidden; border-bottom: 1px solid var(--soft-line); background: #fafbfd; }
 .file-tree-head { display: flex; align-items: center; gap: 6px; padding: 10px 12px 6px; }
