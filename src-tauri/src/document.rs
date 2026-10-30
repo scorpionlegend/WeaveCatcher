@@ -121,6 +121,13 @@ impl Element {
             "navbar" => ("Navbar", String::new()),
             "footer" => ("Footer", "© 2026 Your Company".into()),
             "grid" => ("Grid", String::new()),
+            "calendar" => ("Calendar", "Event Calendar".into()),
+            "textbox" => ("Textbox", "Your message".into()),
+            "richtext" => ("Rich text", "<p><b>Welcome!</b> This is <i>rich text</i> — format it from the Properties panel.</p>".into()),
+            "dropdown" => ("Dropdown", "Choose an option".into()),
+            "datetime" => ("Date & time", "Date & time".into()),
+            "table" => ("Table", String::new()),
+            "strip" => ("Strip", String::new()),
             _ => ("Element", String::new()),
         };
         let mut attributes = BTreeMap::new();
@@ -147,6 +154,22 @@ impl Element {
             attributes.insert("type".into(), "text".into());
         } else if kind == "checkbox" || kind == "radio" {
             attributes.insert("name".into(), "option".into());
+        } else if kind == "calendar" {
+            attributes.insert("subtitle".into(), "Click a highlighted day to see what's on.".into());
+        } else if kind == "textbox" {
+            attributes.insert("placeholder".into(), "Type your message…".into());
+            attributes.insert("name".into(), "message".into());
+            attributes.insert("rows".into(), "4".into());
+        } else if kind == "dropdown" {
+            attributes.insert("name".into(), "choice".into());
+            attributes.insert("options".into(), "Option 1\nOption 2\nOption 3".into());
+        } else if kind == "datetime" {
+            attributes.insert("name".into(), "appt".into());
+        } else if kind == "table" {
+            attributes.insert("rows".into(), "3".into());
+            attributes.insert("cols".into(), "3".into());
+            attributes.insert("header".into(), "on".into());
+            attributes.insert("cells".into(), "[[\"Column 1\",\"Column 2\",\"Column 3\"],[\"\",\"\",\"\"],[\"\",\"\",\"\"]]".into());
         }
         let mut styles = BTreeMap::new();
         match kind {
@@ -168,6 +191,16 @@ impl Element {
             "navbar" => { styles.insert("display".into(), "flex".into()); styles.insert("justifyContent".into(), "space-between".into()); styles.insert("alignItems".into(), "center".into()); styles.insert("padding".into(), "14px 24px".into()); styles.insert("backgroundColor".into(), "#ffffff".into()); styles.insert("borderBottom".into(), "1px solid #e5e8ef".into()); }
             "footer" => { styles.insert("padding".into(), "28px 32px".into()); styles.insert("backgroundColor".into(), "#18212f".into()); styles.insert("color".into(), "#ffffff".into()); styles.insert("textAlign".into(), "center".into()); }
             "grid" => { styles.insert("display".into(), "grid".into()); styles.insert("gridTemplateColumns".into(), "repeat(2, 1fr)".into()); styles.insert("gap".into(), "16px".into()); styles.insert("padding".into(), "8px".into()); }
+            "calendar" => {
+                styles.insert("backgroundColor".into(), "#ffffff".into());
+                styles.insert("padding".into(), "20px".into());
+                styles.insert("border".into(), "1px solid #e5e8ef".into());
+                styles.insert("borderRadius".into(), "12px".into());
+                styles.insert("--vw-calendar-strip".into(), "#5f65e8".into());
+            }
+            "richtext" => { styles.insert("fontSize".into(), "16px".into()); styles.insert("lineHeight".into(), "1.7".into()); styles.insert("color".into(), "#333d4d".into()); }
+            "table" => { styles.insert("width".into(), "100%".into()); }
+            "strip" => { styles.insert("height".into(), "320px".into()); styles.insert("backgroundColor".into(), "#eceef4".into()); styles.insert("borderRadius".into(), "10px".into()); }
             _ => {}
         }
         Self { id: new_id(), kind: kind.into(), name: name.into(), content, attributes, styles, behaviors: Vec::new(), hidden: false, children: Vec::new() }

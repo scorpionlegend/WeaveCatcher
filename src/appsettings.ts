@@ -9,6 +9,7 @@ const FILE_KEYS: Record<string, string> = {
   "visionweave-split": "split",
   "visionweave-roots": "roots",
   "visionweave-lastroot": "lastRoot",
+  "visionweave-autoupdate": "autoUpdate",
 };
 
 const pending = new Map<string, unknown>();

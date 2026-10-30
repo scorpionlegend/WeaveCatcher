@@ -1,0 +1,174 @@
+/*
+ * Stretchable Strips Template - CSS Only
+ * For use with WeaveCatcher website builder
+ * 
+ * This template provides flexible, stretchable strips that adapt to window resizing
+ */
+
+/* Base strip styles - can be customized */
+.strip-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.strip-row {
+  display: flex;
+  flex: 1;
+  min-height: 0; /* Important for flex stretching */
+  width: 100%;
+}
+
+.strip-column {
+  flex: 1;
+  min-width: 0; /* Important for flex stretching */
+  height: 100%;
+}
+
+/* Stretchable content areas */
+.stretchable-content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Example: Full-width header strip */
+.header-strip {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-bottom: 1px solid #e9ecef;
+  flex-shrink: 0; /* Prevents shrinking */
+}
+
+/* Example: Content strip with flexible columns */
+.content-strip {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.content-main {
+  flex: 2;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 0.25rem;
+}
+
+.content-sidebar {
+  flex: 1;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 0.25rem;
+}
+
+/* Example: Footer strip */
+.footer-strip {
+  background: #343a40;
+  color: white;
+  padding: 1rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .content-strip {
+    flex-direction: column;
+  }
+  
+  .content-main,
+  .content-sidebar {
+    flex: 1;
+  }
+}
+
+/* Stretchable grid layout */
+.stretchable-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.grid-item {
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 0.25rem;
+  padding: 1rem;
+  min-height: 150px;
+}
+
+/* Full-height stretchable section */
+.full-height-strip {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.full-height-content {
+  flex: 1;
+  overflow: auto;
+  padding: 1rem;
+}
+
+/* Customizable strip classes */
+.strip-primary {
+  background: #007bff;
+  color: white;
+}
+
+.strip-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.strip-success {
+  background: #28a745;
+  color: white;
+}
+
+.strip-danger {
+  background: #dc3545;
+  color: white;
+}
+
+.strip-warning {
+  background: #ffc107;
+  color: #212529;
+}
+
+.strip-info {
+  background: #17a2b8;
+  color: white;
+}
+
+.strip-light {
+  background: #f8f9fa;
+  color: #212529;
+}
+
+.strip-dark {
+  background: #343a40;
+  color: white;
+}
+
+/* Utility classes for quick use */
+.strip-padding-small { padding: 0.5rem; }
+.strip-padding-medium { padding: 1rem; }
+.strip-padding-large { padding: 1.5rem; }
+
+.strip-margin-small { margin: 0.5rem; }
+.strip-margin-medium { margin: 1rem; }
+.strip-margin-large { margin: 1.5rem; }
+
+.strip-rounded { border-radius: 0.25rem; }
+.strip-rounded-lg { border-radius: 0.5rem; }
+.strip-rounded-xl { border-radius: 1rem; }
+
+.strip-shadow { box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
+.strip-shadow-lg { box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15); }

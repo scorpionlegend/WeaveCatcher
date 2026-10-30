@@ -4,6 +4,31 @@ import { applyTheme } from "./theme";
 
 const RELEASES: { version: string; date: string; highlights: string[] }[] = [
   {
+    version: "0.2.0",
+    date: "October 29, 2026",
+    highlights: [
+      "New WIDGETS category with seven ready-made modules: Event calendar, Text box, Rich text, Dropdown, Date & time boxes, Table and Strip",
+      "Event calendar: shows the current month with today outlined, and the Manage Events editor highlights event days with a tooltip",
+      "Strip: a full-width banner with a background image — pick from the online strip gallery, upload your own picture, or use an offline gradient",
+      "Rich text: format text with bold, italic, underline, headings and bullet lists from Properties",
+      "Table: set rows, columns and a header row, then type every cell in Properties",
+      "New Help menu: Learn HTML, Learn CSS and Learn JavaScript tutorials, plus a visual step-by-step 'How to use WeaveCatcher' tour",
+      "Every element now has a CSS class field in Properties, so exported HTML and CSS can use readable names instead of generated ones",
+      "New auto-update toggle in Settings: with it on, updates download and install while WeaveCatcher runs instead of waiting for the next launch",
+    ],
+  },
+  {
+    version: "0.1.9",
+    date: "October 29, 2026",
+    highlights: [
+      "New form elements: checkbox and radio button, with caption text, field names and a checked-by-default option",
+      "Required fields: mark any form field as required and it shows a red asterisk",
+      "Submitting a form with an empty required field now warns the visitor instead of sending",
+      "Press Delete or Backspace to remove the selected element on the canvas",
+      "New Light, Dark and System appearance modes in Settings; System follows your OS theme",
+    ],
+  },
+  {
     version: "0.1.8",
     date: "October 29, 2026",
     highlights: [

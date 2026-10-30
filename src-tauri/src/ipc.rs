@@ -241,11 +241,50 @@ pub fn load_app_settings(app: tauri::AppHandle) -> Result<SettingsMap, String> {
     read_settings_file(&app)
 }
 
+/// Read-side helper for the Rust side (updater worker init at startup).
+pub fn read_setting(app: &tauri::AppHandle, key: &str) -> Option<serde_json::Value> {
+    read_settings_file(app).ok()?.get(key).cloned()
+}
+
+#[tauri::command]
+pub fn set_auto_update(enabled: bool) {
+    crate::updater::set_enabled(enabled);
+}
+
 #[tauri::command]
 pub fn save_app_setting(app: tauri::AppHandle, key: String, value: serde_json::Value) -> Result<(), String> {
     let mut settings = read_settings_file(&app)?;
     settings.insert(key, value);
     write_settings_file(&app, &settings)
+}
+
+/// The tutorial the help window should show; written by `open_help_window` before the
+/// window exists (read on load) or emitted to the running window when it's already open.
+pub struct HelpTopic(pub Mutex<String>);
+
+/// Async so the window builds off the main thread — a sync command that builds a
+/// window deadlocks the Windows event loop (blank window, nothing closable).
+#[tauri::command]
+pub async fn open_help_window(app: tauri::AppHandle, topic: String) -> Result<(), String> {
+    use tauri::{Emitter, Manager};
+    *app.state::<HelpTopic>().0.lock().map_err(|_| "Help state unavailable.".to_string())? = topic.clone();
+    if let Some(existing) = app.get_webview_window("help") {
+        let _ = existing.set_focus();
+        let _ = existing.emit_to("help", "help-topic", topic);
+        return Ok(());
+    }
+    tauri::WebviewWindowBuilder::new(&app, "help", tauri::WebviewUrl::App("index.html".into()))
+        .title("WeaveCatcher Help")
+        .inner_size(780.0, 640.0)
+        .min_inner_size(560.0, 480.0)
+        .build()
+        .map_err(|error| format!("Could not open the help window: {error}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_help_topic(state: tauri::State<'_, HelpTopic>) -> Result<String, String> {
+    state.0.lock().map(|topic| topic.clone()).map_err(|_| "Help state unavailable.".into())
 }
 
 /// Async so the window builds off the main thread — a sync command that builds a

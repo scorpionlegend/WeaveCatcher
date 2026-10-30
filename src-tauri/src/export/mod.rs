@@ -101,7 +101,7 @@ fn emit_html(page: &Page, media: &HashMap<String, String>) -> String {
 /// Media attributes on media elements may hold local file paths (chosen with the
 /// file browser); remote/data URLs are left untouched.
 fn is_media_attribute(kind: &str, name: &str) -> bool {
-    matches!(kind, "image" | "rollover" | "video" | "audio") && matches!(name, "src" | "poster" | "data-rollover")
+    matches!(kind, "image" | "rollover" | "video" | "audio" | "strip") && matches!(name, "src" | "poster" | "data-rollover")
 }
 
 fn is_remote_media(value: &str) -> bool {
@@ -136,7 +136,7 @@ fn render_elements(elements: &[Element], depth: usize, output: &mut String, medi
         if element.hidden { continue; }
         let tag = tag_for(&element.kind);
         let indent = "  ".repeat(depth);
-        let class_name = format!("vw-{}", element.id.replace('-', ""));
+        let class_name = export_class(element);
         let mut attrs = format!(" class=\"{}\" data-vw-id=\"{}\"", class_name, escape_html(&element.id));
         for (name, value) in &element.attributes {
             if !allowed_attribute(&element.kind, name) { continue; }
@@ -164,6 +164,81 @@ fn render_elements(elements: &[Element], depth: usize, output: &mut String, medi
             output.push_str(&format!("{indent}<label{attrs}><input type=\"{kind}\" name=\"{name}\"{checked}{required_attr}> {text}{star}</label>\n", name = escape_html(field_name), text = escape_html(&element.content), star = star));
             continue;
         }
+        if element.kind == "textbox" {
+            let mut field_attrs = String::new();
+            for (name, value) in &element.attributes {
+                if !allowed_attribute("textbox", name) { continue; }
+                field_attrs.push_str(&format!(" {}=\"{}\"", name, escape_html(value)));
+            }
+            let star = if required { " <span class=\"vw-required\">*</span>" } else { "" };
+            output.push_str(&format!("{indent}<label{attrs}><textarea{field_attrs}></textarea> {text}{star}</label>\n", field_attrs = field_attrs, text = escape_html(&element.content), star = star));
+            continue;
+        }
+        if element.kind == "dropdown" {
+            let select_attrs = format!(" name=\"{}\"{}", escape_html(element.attributes.get("name").map(String::as_str).unwrap_or("choice")), if required { " required" } else { "" });
+            let star = if required { " <span class=\"vw-required\">*</span>" } else { "" };
+            output.push_str(&format!("{indent}<label{attrs}><select{select_attrs}>"));
+            for option in element.attributes.get("options").map(String::as_str).unwrap_or("").split('\n').filter(|option| !option.trim().is_empty()) {
+                output.push_str(&format!("<option>{}</option>", escape_html(option.trim())));
+            }
+            let text = if element.content.is_empty() { String::new() } else { format!(" {}", escape_html(&element.content)) };
+            output.push_str(&format!("</select>{text}{star}</label>\n", text = text, star = star));
+            continue;
+        }
+        if element.kind == "datetime" {
+            let field_name = element.attributes.get("name").map(String::as_str).unwrap_or("appt");
+            let req = if required { " required" } else { "" };
+            let label = if element.content.is_empty() { String::new() } else { format!("<span class=\"vw-dt-label\">{}</span>", escape_html(&element.content)) };
+            output.push_str(&format!("{indent}<div{attrs}>{label}<label>Date <input type=\"date\" name=\"{}-date\"{req}></label> <label>Time <input type=\"time\" name=\"{}-time\"{req}></label></div>\n", escape_html(field_name), escape_html(field_name)));
+            continue;
+        }
+        if element.kind == "table" {
+            let rows: usize = element.attributes.get("rows").and_then(|value| value.parse().ok()).unwrap_or(3).clamp(1, 30);
+            let cols: usize = element.attributes.get("cols").and_then(|value| value.parse().ok()).unwrap_or(3).clamp(1, 10);
+            let header = element.attributes.get("header").map(|value| value == "on").unwrap_or(false);
+            let cells = table_cells(element, rows, cols);
+            output.push_str(&format!("{indent}<table{attrs}>\n"));
+            let mut body_rows = cells.as_slice();
+            if header {
+                output.push_str(&format!("{indent}  <thead>\n{indent}    <tr>"));
+                for value in &cells[0] { output.push_str(&format!("<th>{}</th>", escape_html(value))); }
+                output.push_str(&format!("</tr>\n{indent}  </thead>\n"));
+                body_rows = &cells[1..];
+            }
+            output.push_str(&format!("{indent}  <tbody>\n"));
+            for row in body_rows {
+                output.push_str(&format!("{indent}    <tr>"));
+                for value in row { output.push_str(&format!("<td>{}</td>", escape_html(value))); }
+                output.push_str("</tr>\n");
+            }
+            output.push_str(&format!("{indent}  </tbody>\n{indent}</table>\n"));
+            continue;
+        }
+        if element.kind == "strip" {
+            let src = element.attributes.get("src").map(String::as_str).unwrap_or("");
+            let image = if src.is_empty() { String::new() } else if is_remote_media(src) { src.to_string() } else { media.get(src).cloned().unwrap_or_else(|| src.to_string()) };
+            let style = if image.is_empty() { String::new() } else { format!(" style=\"background-image:url('{}'); background-size:cover; background-position:center;\"", escape_html(&image)) };
+            let strip_attrs = attrs.replacen("class=\"", "class=\"vw-strip ", 1);
+            output.push_str(&format!("{indent}<div{strip_attrs}{style}>"));
+            if !element.content.is_empty() { output.push_str(&format!("<span class=\"vw-strip-text\">{}</span>", escape_html(&element.content))); }
+            output.push_str("</div>\n");
+            continue;
+        }
+        if element.kind == "calendar" {
+            // Shell only — the visitor's browser fills the weekday row and day grid with
+            // the current month (see emit_calendar).
+            let subtitle = element.attributes.get("subtitle").map(String::as_str).unwrap_or("");
+            output.push_str(&format!("{indent}<div{attrs}>\n"));
+            output.push_str(&format!("{indent}  <div class=\"vw-cal-strip\">\n"));
+            output.push_str(&format!("{indent}    <p class=\"vw-cal-month\" data-cal-month></p>\n"));
+            output.push_str(&format!("{indent}    <h3 class=\"vw-cal-title\">{}</h3>\n", escape_html(&element.content)));
+            if !subtitle.is_empty() { output.push_str(&format!("{indent}    <p class=\"vw-cal-sub\">{}</p>\n", escape_html(subtitle))); }
+            output.push_str(&format!("{indent}  </div>\n"));
+            output.push_str(&format!("{indent}  <div class=\"vw-cal-week\" data-cal-week></div>\n"));
+            output.push_str(&format!("{indent}  <div class=\"vw-cal-days\" data-cal-days></div>\n"));
+            output.push_str(&format!("{indent}</div>\n"));
+            continue;
+        }
         if matches!(tag, "img" | "input" | "hr") {
             output.push_str(&format!("{indent}<{tag}{attrs}>\n"));
             continue;
@@ -189,7 +264,7 @@ fn tag_for(kind: &str) -> &'static str {
 }
 
 fn base_css() -> String {
-    "* { box-sizing: border-box; }\nbody { margin: 0; font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #18212f; }\n.is-hidden { display: none !important; }\n.vw-required { color: #d0453e; font-weight: 600; }\n".into()
+    "* { box-sizing: border-box; }\nbody { margin: 0; font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #18212f; }\n.is-hidden { display: none !important; }\n.vw-required { color: #d0453e; font-weight: 600; }\n.vw-cal-strip { background: var(--vw-calendar-strip, #5f65e8); padding: 18px 20px; border-radius: 9px 9px 0 0; color: #ffffff; }\n.vw-cal-month { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; opacity: .8; }\n.vw-cal-title { margin: 4px 0 0; font-size: 20px; }\n.vw-cal-sub { margin: 6px 0 0; font-size: 13px; opacity: .85; }\n.vw-cal-week, .vw-cal-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }\n.vw-cal-week { margin-top: 16px; }\n.vw-cal-cell { padding: 8px 0; text-align: center; font-size: 13px; border-radius: 6px; color: #333d4d; }\n.vw-cal-cell.pad { visibility: hidden; }\n.vw-cal-cell.event { background: #eef0ff; font-weight: 700; color: #3f48c9; cursor: pointer; }\n.vw-cal-cell.today { box-shadow: inset 0 0 0 2px #5f65e8; }\n.vw-datetime { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }\n.vw-dt-label { font-weight: 600; }\n.vw-datetime label { display: inline-flex; align-items: center; gap: 6px; }\ntable { border-collapse: collapse; }\nth, td { border: 1px solid #dfe3ec; padding: 8px 12px; text-align: left; }\nth { background: #f5f6fb; }\n.vw-strip { display: flex; align-items: center; justify-content: center; overflow: hidden; }\n.vw-strip-text { color: #ffffff; font-size: 26px; font-weight: 700; text-shadow: 0 1px 8px rgba(16, 20, 37, .45); }\n".into()
 }
 
 fn emit_css(elements: &[Element]) -> String {
@@ -200,7 +275,7 @@ fn emit_css(elements: &[Element]) -> String {
 
 fn emit_styles(elements: &[Element], output: &mut String) {
     for element in elements {
-        let class_name = format!("vw-{}", element.id.replace('-', ""));
+        let class_name = export_class(element);
         if !element.styles.is_empty() {
             output.push_str(&format!(".{} {{\n", class_name));
             for (property, value) in &element.styles {
@@ -233,6 +308,7 @@ fn emit_js_tree(elements: &[&Element], output: &mut String) {
         emit_behaviors(&element.behaviors, &element.id, output);
         if element.kind == "rollover" { emit_rollover(element, output); }
         if element.kind == "form" { emit_form_validation(element, output); }
+        if element.kind == "calendar" { emit_calendar(element, output); }
         let children: Vec<&Element> = element.children.iter().collect();
         emit_js_tree(&children, output);
     }
@@ -251,6 +327,59 @@ fn emit_form_validation(element: &Element, output: &mut String) {
     output.push_str(&format!("      const trigger = event.target.closest('a, button');\n"));
     output.push_str(&format!("      if (trigger && !form_{ident}.checkValidity()) {{ event.preventDefault(); form_{ident}.reportValidity(); }}\n"));
     output.push_str("    });\n");
+    output.push_str("  }\n");
+}
+
+#[derive(serde::Deserialize)]
+struct CalendarEvent { date: String, #[serde(default)] title: String }
+
+fn calendar_events(element: &Element) -> Vec<CalendarEvent> {
+    serde_json::from_str(element.attributes.get("events").map(String::as_str).unwrap_or("[]")).unwrap_or_default()
+}
+
+/// The table's cell texts, resized to exactly rows×cols (missing cells empty, extras dropped,
+/// malformed JSON → an all-empty grid so a broken attribute can't take the table down).
+fn table_cells(element: &Element, rows: usize, cols: usize) -> Vec<Vec<String>> {
+    let stored: Vec<Vec<String>> = serde_json::from_str(element.attributes.get("cells").map(String::as_str).unwrap_or("[]")).unwrap_or_default();
+    (0..rows).map(|row| (0..cols).map(|col| stored.get(row).and_then(|values| values.get(col)).cloned().unwrap_or_default()).collect()).collect()
+}
+
+/// Fills the calendar shell in the visitor's browser with the current month — weekday
+/// row, day grid, today's outline and the days carrying events — so the calendar is
+/// always up to date without regenerating the site.
+fn emit_calendar(element: &Element, output: &mut String) {
+    let ident = js_identifier(&element.id);
+    let selector = format!("[data-vw-id=\\\"{}\\\"]", js_string(&element.id));
+    let events = calendar_events(element).iter()
+        .map(|event| format!("'{}':'{}'", js_string(&event.date), js_string(&event.title)))
+        .collect::<Vec<_>>().join(",");
+    let monday = element.attributes.get("weekStart").map(|value| value == "monday").unwrap_or(false);
+    output.push_str(&format!("  const cal_{ident} = document.querySelector('{selector}');\n"));
+    output.push_str(&format!("  if (cal_{ident}) {{\n"));
+    output.push_str(&format!("    const cal_days_{ident} = cal_{ident}.querySelector('[data-cal-days]');\n"));
+    output.push_str(&format!("    const cal_week_{ident} = cal_{ident}.querySelector('[data-cal-week]');\n"));
+    output.push_str(&format!("    const cal_month_{ident} = cal_{ident}.querySelector('[data-cal-month]');\n"));
+    output.push_str(&format!("    const cal_events_{ident} = {{{events}}};\n"));
+    output.push_str(&format!("    const cal_names_{ident} = ['January','February','March','April','May','June','July','August','September','October','November','December'];\n"));
+    output.push_str(&format!("    const cal_dow_{ident} = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];\n"));
+    output.push_str(&format!("    const cal_now_{ident} = new Date();\n"));
+    output.push_str(&format!("    const cal_y_{ident} = cal_now_{ident}.getFullYear(), cal_m_{ident} = cal_now_{ident}.getMonth();\n"));
+    output.push_str(&format!("    const cal_mon_{ident} = {monday};\n"));
+    output.push_str(&format!("    if (cal_month_{ident}) cal_month_{ident}.textContent = cal_names_{ident}[cal_m_{ident}] + ' ' + cal_y_{ident};\n"));
+    output.push_str(&format!("    if (cal_week_{ident}) (cal_mon_{ident} ? [1,2,3,4,5,6,0] : [0,1,2,3,4,5,6]).forEach((d) => {{ const c = document.createElement('div'); c.className = 'vw-cal-cell'; c.textContent = cal_dow_{ident}[d]; cal_week_{ident}.appendChild(c); }});\n"));
+    output.push_str(&format!("    const cal_pad_{ident} = (new Date(cal_y_{ident}, cal_m_{ident}, 1).getDay() + (cal_mon_{ident} ? 6 : 0)) % 7;\n"));
+    output.push_str(&format!("    const cal_total_{ident} = new Date(cal_y_{ident}, cal_m_{ident} + 1, 0).getDate();\n"));
+    output.push_str(&format!("    if (cal_days_{ident}) {{\n"));
+    output.push_str(&format!("      for (let i = 0; i < cal_pad_{ident}; i++) {{ const c = document.createElement('div'); c.className = 'vw-cal-cell pad'; cal_days_{ident}.appendChild(c); }}\n"));
+    output.push_str(&format!("      for (let d = 1; d <= cal_total_{ident}; d++) {{\n"));
+    output.push_str(&format!("        const key = cal_y_{ident} + '-' + String(cal_m_{ident} + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');\n"));
+    output.push_str(&format!("        const c = document.createElement('div');\n"));
+    output.push_str(&format!("        c.className = 'vw-cal-cell' + (cal_events_{ident}[key] ? ' event' : '') + (d === cal_now_{ident}.getDate() ? ' today' : '');\n"));
+    output.push_str(&format!("        c.textContent = d;\n"));
+    output.push_str(&format!("        if (cal_events_{ident}[key]) c.title = cal_events_{ident}[key];\n"));
+    output.push_str(&format!("        cal_days_{ident}.appendChild(c);\n"));
+    output.push_str("      }\n");
+    output.push_str("    }\n");
     output.push_str("  }\n");
 }
 
@@ -298,6 +427,24 @@ fn emit_action(behavior: &Behavior, indent: &str, output: &mut String) {
 
 fn js_identifier(value: &str) -> String { value.chars().map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' }).collect() }
 
+/// The class written into the exported HTML and CSS selectors: the user's CSS class
+/// property when set, otherwise the generated vw-<id> fallback. `data-vw-id` is always
+/// emitted too, so behaviors keep working however the class is named.
+fn export_class(element: &Element) -> String {
+    element.attributes.get("class").map(String::as_str).and_then(user_class)
+        .unwrap_or_else(|| format!("vw-{}", element.id.replace('-', "")))
+}
+
+/// Sanitizes a user-typed class name: anything outside [A-Za-z0-9_-] becomes a dash
+/// (spaces included, so one input yields one class) and a leading digit gets an
+/// underscore prefix. None when nothing usable remains.
+fn user_class(value: &str) -> Option<String> {
+    let cleaned: String = value.trim().chars().map(|ch| if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' { ch } else { '-' }).collect();
+    if !cleaned.chars().any(|ch| ch.is_ascii_alphanumeric() || ch == '_') { return None; }
+    if cleaned.chars().next().is_some_and(|ch| ch.is_ascii_digit()) { return Some(format!("_{cleaned}")); }
+    Some(cleaned)
+}
+
 fn allowed_attribute(kind: &str, name: &str) -> bool {
     match kind {
         "image" => matches!(name, "src" | "alt" | "title" | "loading"),
@@ -307,6 +454,9 @@ fn allowed_attribute(kind: &str, name: &str) -> bool {
         "audio" => matches!(name, "src" | "controls" | "autoplay" | "loop" | "muted" | "preload" | "title"),
         "button" | "link" => matches!(name, "href" | "target" | "rel" | "title"),
         "input" => matches!(name, "type" | "placeholder" | "name" | "required" | "value" | "aria-label"),
+        "textbox" => matches!(name, "name" | "placeholder" | "rows" | "required" | "aria-label"),
+        "dropdown" => matches!(name, "name" | "required" | "aria-label"),
+        "datetime" => matches!(name, "name" | "required"),
         "checkbox" | "radio" => matches!(name, "name" | "aria-label"),
         "form" => matches!(name, "action" | "method" | "name"),
         _ => matches!(name, "title" | "aria-label" | "role"),
@@ -316,3 +466,70 @@ fn allowed_attribute(kind: &str, name: &str) -> bool {
 fn js_string(value: &str) -> String { value.replace('\\', "\\\\").replace('\'', "\\'").replace('\n', " ") }
 fn escape_html(value: &str) -> String { value.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&#39;") }
 fn safe_filename(value: &str) -> String { value.chars().map(|ch| if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' { ch } else { '-' }).collect() }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanitizes_user_classes() {
+        assert_eq!(user_class("hero-banner"), Some("hero-banner".into()));
+        assert_eq!(user_class("Hero Section!"), Some("Hero-Section-".into()));
+        assert_eq!(user_class("9grid"), Some("_9grid".into()));
+        assert_eq!(user_class("  spaced_name "), Some("spaced_name".into()));
+        assert_eq!(user_class("!!!"), None);
+        assert_eq!(user_class(""), None);
+    }
+
+    #[test]
+    fn export_class_falls_back_to_generated_id() {
+        let mut element = Element::new("heading");
+        assert!(export_class(&element).starts_with("vw-"));
+        element.attributes.insert("class".into(), "my heading".into());
+        assert_eq!(export_class(&element), "my-heading");
+        element.attributes.insert("class".into(), "***".into());
+        assert!(export_class(&element).starts_with("vw-"));
+    }
+
+    #[test]
+    fn calendar_exports_shell_and_embeds_events() {
+        let mut element = Element::new("calendar");
+        element.content = "Events".into();
+        element.attributes.insert("events".into(), r#"[{"date":"2026-11-05","title":"Bake sale"}]"#.into());
+        let mut html = String::new();
+        render_elements(&[element.clone()], 0, &mut html, &Default::default());
+        assert!(html.contains("vw-cal-days"));
+        assert!(html.contains("Events"));
+        assert!(!html.contains("Bake sale"), "events live in the script, not the HTML");
+        let mut js = String::new();
+        emit_calendar(&element, &mut js);
+        assert!(js.contains("2026-11-05") && js.contains("Bake sale"));
+        // Malformed event JSON must not break the calendar.
+        element.attributes.insert("events".into(), "not json".into());
+        assert!(calendar_events(&element).is_empty());
+    }
+
+    #[test]
+    fn table_and_strip_export_from_attributes() {
+        let mut table = Element::new("table");
+        table.attributes.insert("cells".into(), r#"[["A","B","C"],["1","2","3"]]"#.into());
+        assert_eq!(table_cells(&table, 2, 3)[1][2], "3");
+        // Resizing keeps overlapping content and pads the rest with empty cells.
+        assert_eq!(table_cells(&table, 3, 4)[2][3], "");
+        assert_eq!(table_cells(&table, 1, 1)[0][0], "A");
+        table.attributes.insert("cells".into(), "broken".into());
+        assert_eq!(table_cells(&table, 2, 2)[1][1], "");
+
+        let mut strip = Element::new("strip");
+        strip.content = "Hello".into();
+        let mut html = String::new();
+        render_elements(&[strip.clone()], 0, &mut html, &Default::default());
+        assert!(html.contains("vw-strip") && html.contains("Hello") && !html.contains("background-image"));
+        strip.attributes.insert("src".into(), r"C:\pics\banner.jpg".into());
+        let mut media = std::collections::HashMap::new();
+        media.insert(r"C:\pics\banner.jpg".to_string(), "media/banner.jpg".to_string());
+        let mut html = String::new();
+        render_elements(&[strip], 0, &mut html, &media);
+        assert!(html.contains("url('media/banner.jpg')"));
+    }
+}

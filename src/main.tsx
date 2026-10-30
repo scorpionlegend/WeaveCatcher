@@ -3,6 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import App from "./App";
 import { SettingsApp } from "./Settings";
 import { ReleaseNotesApp } from "./ReleaseNotes";
+import { TutorialApp } from "./Tutorial";
 import { applyTheme } from "./theme";
 import { restoreAppSettings } from "./appsettings";
 import "./style.css";
@@ -20,5 +21,5 @@ const root = document.getElementById("app");
 // the dock layout and theme are correct from the first paint.
 void restoreAppSettings().finally(() => {
   applyTheme();
-  if (root) render(windowLabel === "settings" ? <SettingsApp /> : windowLabel === "release" ? <ReleaseNotesApp /> : <App />, root);
+  if (root) render(windowLabel === "settings" ? <SettingsApp /> : windowLabel === "release" ? <ReleaseNotesApp /> : windowLabel === "help" ? <TutorialApp /> : <App />, root);
 });

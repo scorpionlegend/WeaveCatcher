@@ -91,6 +91,7 @@ const PALETTE_GROUPS: { label: string; items: readonly (readonly [string, string
   { label: "NAVIGATION", items: [["navbar", "Navbar", "☰"], ["footer", "Footer", "▂"]] },
   { label: "FORMS", items: [["form", "Form", "▤"], ["input", "Input", "▭"], ["checkbox", "Checkbox", "☑"], ["radio", "Radio button", "◉"]] },
   { label: "INTERACTIVE", items: [["button", "Button", "▰"], ["modal", "Modal", "▣"]] },
+  { label: "WIDGETS", items: [["calendar", "Event calendar", "▦"], ["textbox", "Text box", "▭"], ["richtext", "Rich text", "B"], ["dropdown", "Dropdown", "▾"], ["datetime", "Date & time", "◷"], ["table", "Table", "⚏"], ["strip", "Strip", "▬"]] },
 ];
 const ELEMENT_INFO = PALETTE_GROUPS.flatMap((group) => group.items);
 const VIEW_MODES: readonly ViewMode[] = ["canvas", "split", "code"];
@@ -122,6 +123,74 @@ function tagFor(kind: string): string {
 }
 
 function isRemoteMedia(value: string) { return value === "" || /^(https?:|data:|blob:|asset:)/i.test(value); }
+
+const CALENDAR_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const CALENDAR_DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+type CalendarEventEntry = { date: string; title: string };
+
+function parseCalendarEvents(raw: string | undefined): CalendarEventEntry[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item: unknown) => {
+      const record = (item ?? {}) as { date?: unknown; title?: unknown };
+      return { date: typeof record.date === "string" ? record.date : "", title: typeof record.title === "string" ? record.title : "" };
+    }).filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item.date));
+  } catch { return []; }
+}
+
+function calendarIsoDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+/// The visible month for the shared year/month: leading blanks plus one entry per day.
+function calendarDays(mondayStart: boolean): { key: string; day: number | null; today: boolean; iso: string }[] {
+  const now = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth(), 1).getDay();
+  const pad = mondayStart ? (first + 6) % 7 : first;
+  const total = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const days: { key: string; day: number | null; today: boolean; iso: string }[] = [];
+  for (let i = 0; i < pad; i++) days.push({ key: `pad-${i}`, day: null, today: false, iso: "" });
+  for (let day = 1; day <= total; day++) {
+    const iso = calendarIsoDate(new Date(now.getFullYear(), now.getMonth(), day));
+    days.push({ key: String(day), day, today: day === now.getDate(), iso });
+  }
+  return days;
+}
+
+/// The table's cell texts resized to exactly rows×cols (same contract as the Rust side).
+function parseTableCells(raw: string | undefined, rows: number, cols: number): string[][] {
+  let stored: string[][] = [];
+  try {
+    const parsed: unknown = JSON.parse(raw ?? "[]");
+    if (Array.isArray(parsed)) stored = parsed.map((row: unknown) => Array.isArray(row) ? row.map((value: unknown) => String(value ?? "")) : []);
+  } catch { /* broken attribute → empty grid */ }
+  return Array.from({ length: rows }, (_, row) => Array.from({ length: cols }, (_, col) => stored[row]?.[col] ?? ""));
+}
+
+function tableSize(element: ElementNode): { rows: number; cols: number } {
+  const clamp = (value: number, min: number, max: number) => Number.isFinite(value) ? Math.min(max, Math.max(min, Math.trunc(value))) : min;
+  return {
+    rows: clamp(parseInt(element.attributes.rows ?? "3", 10), 1, 30),
+    cols: clamp(parseInt(element.attributes.cols ?? "3", 10), 1, 10),
+  };
+}
+
+/// Offline strip backgrounds (CSS gradients — no download needed), plus the GitHub
+/// gallery is fetched on top of these in the strip picker.
+const STRIP_PRESETS: { name: string; value: string }[] = [
+  { name: "Midnight", value: "linear-gradient(120deg, #101425, #2b2f45)" },
+  { name: "Paper", value: "linear-gradient(120deg, #f4f6f8, #e8ebf1)" },
+  { name: "Sunset", value: "linear-gradient(120deg, #ff9966, #ff5e62)" },
+  { name: "Ocean", value: "linear-gradient(120deg, #2193b0, #6dd5ed)" },
+  { name: "Meadow", value: "linear-gradient(120deg, #8bb57e, #3e8e5a)" },
+];
+
+// The strip gallery lives in a GitHub repository: manifest.json lists the image
+// filenames and the picker loads them from raw.githubusercontent.com.
+const STRIP_REPO_URL = "https://raw.githubusercontent.com/scorpionlegend/WeaveCatcher-Strips/main/";
 
 function mediaDisplayUrl(value: string | undefined): string | undefined {
   if (!value || isRemoteMedia(value)) return value;
@@ -913,6 +982,7 @@ return <div class="app-shell">
             <details class="menu" open={openMenu === "insert" ? true : undefined} onToggle={(event) => { const isOpen = event.currentTarget.open; setOpenMenu((previous) => (isOpen ? "insert" : previous === "insert" ? null : previous)); }}><summary onMouseEnter={() => { if (openMenu && openMenu !== "insert") setOpenMenu("insert"); }}>Insert</summary><div class="menu-pop">{ELEMENT_INFO.map(([kind, label]) => <button key={kind} onClick={() => addElement(kind)}>{label}</button>)}</div></details>
             <details class="menu" open={openMenu === "format" ? true : undefined} onToggle={(event) => { const isOpen = event.currentTarget.open; setOpenMenu((previous) => (isOpen ? "format" : previous === "format" ? null : previous)); }}><summary onMouseEnter={() => { if (openMenu && openMenu !== "format") setOpenMenu("format"); }}>Format</summary><div class="menu-pop"><button onClick={() => revealPanel("theme")}>Style presets</button><button onClick={() => revealPanel("behaviors")}>Behaviors…</button></div></details>
             <details class="menu" open={openMenu === "view" ? true : undefined} onToggle={(event) => { const isOpen = event.currentTarget.open; setOpenMenu((previous) => (isOpen ? "view" : previous === "view" ? null : previous)); }}><summary onMouseEnter={() => { if (openMenu && openMenu !== "view") setOpenMenu("view"); }}>View</summary><div class="menu-pop"><button onClick={() => setViewMode("canvas")}>Canvas only{viewMode === "canvas" ? " ✓" : ""}</button><button onClick={() => setViewMode("split")}>Split view{viewMode === "split" ? " ✓" : ""}</button><button onClick={() => setViewMode("code")}>Code only{viewMode === "code" ? " ✓" : ""}</button><hr />{ALL_PANELS.map((panelId) => <button key={panelId} onClick={() => togglePanelOpen(panelId)}>{DOCK_PANELS[panelId].title}{isPanelOpen(panelId) ? <span class="menu-check">✓</span> : null}</button>)}<hr /><button onClick={() => setLayout(documentModel.settings.layout === "classic" ? "modern" : "classic")}>Switch toolbar style</button></div></details>
+            <details class="menu" open={openMenu === "help" ? true : undefined} onToggle={(event) => { const isOpen = event.currentTarget.open; setOpenMenu((previous) => (isOpen ? "help" : previous === "help" ? null : previous)); }}><summary onMouseEnter={() => { if (openMenu && openMenu !== "help") setOpenMenu("help"); }}>Help</summary><div class="menu-pop"><button onClick={() => void invoke("open_help_window", { topic: "tour" }).catch(showError)}>How to use WeaveCatcher</button><hr /><button onClick={() => void invoke("open_help_window", { topic: "html" }).catch(showError)}>Learn HTML</button><button onClick={() => void invoke("open_help_window", { topic: "css" }).catch(showError)}>Learn CSS</button><button onClick={() => void invoke("open_help_window", { topic: "js" }).catch(showError)}>Learn JavaScript</button></div></details>
           </nav>
           <div class="top-actions">
             <button class="quiet-button" onClick={() => void saveProject()} title="Save project">Save</button>
@@ -1037,6 +1107,64 @@ function CanvasElement(props: { node: ElementNode; selectedId: string | null; dr
     const iframeProps: Record<string, unknown> = { ...node.attributes, class: "iframe-embed", style: { width: "100%", height: "100%" } };
     return h("div", propsForNode, h("iframe", iframeProps), h("div", { class: "iframe-overlay" }));
   }
+  if (node.kind === "calendar") {
+    // Same structure the export produces; the strip color rides in as a CSS custom
+    // property on the element's inline style so it reaches the inner strip.
+    const strip = node.styles["--vw-calendar-strip"] ?? "#5f65e8";
+    const mondayStart = node.attributes.weekStart === "monday";
+    const events = parseCalendarEvents(node.attributes.events);
+    const now = new Date();
+    const dowOrder = mondayStart ? [1, 2, 3, 4, 5, 6, 0] : [0, 1, 2, 3, 4, 5, 6];
+    return h("div", propsForNode,
+      h("div", { class: "vw-cal-strip", style: { background: strip } },
+        h("p", { class: "vw-cal-month" }, `${CALENDAR_MONTHS[now.getMonth()]} ${now.getFullYear()}`),
+        h("h3", { class: "vw-cal-title" }, node.content),
+        node.attributes.subtitle ? h("p", { class: "vw-cal-sub" }, node.attributes.subtitle) : null),
+      h("div", { class: "vw-cal-week" }, dowOrder.map((day) => h("div", { class: "vw-cal-cell", key: day }, CALENDAR_DOW[day]))),
+      h("div", { class: "vw-cal-days" }, calendarDays(mondayStart).map((cell) => {
+        const title = cell.day === null ? undefined : events.find((event) => event.date === cell.iso)?.title;
+        return h("div", { class: `vw-cal-cell${cell.day === null ? " pad" : ""}${title !== undefined ? " event" : ""}${cell.today ? " today" : ""}`, key: cell.key, title }, cell.day ?? "");
+      })));
+  }
+  if (node.kind === "textbox") {
+    const fieldProps: Record<string, unknown> = { name: node.attributes.name, placeholder: node.attributes.placeholder, rows: node.attributes.rows ?? "4" };
+    if (node.attributes.required !== undefined) fieldProps.required = true;
+    return h("label", propsForNode, h("textarea", fieldProps), node.content, node.attributes.required !== undefined ? h("span", { class: "vw-required" }, "*") : null);
+  }
+  if (node.kind === "dropdown") {
+    const options = (node.attributes.options ?? "").split("\n").map((option) => option.trim()).filter(Boolean);
+    return h("label", propsForNode,
+      h("select", { name: node.attributes.name, required: node.attributes.required !== undefined }, options.map((option) => h("option", { key: option }, option))),
+      node.content,
+      node.attributes.required !== undefined ? h("span", { class: "vw-required" }, "*") : null);
+  }
+  if (node.kind === "datetime") {
+    const required = node.attributes.required !== undefined;
+    return h("div", propsForNode,
+      node.content ? h("span", { class: "vw-dt-label" }, node.content) : null,
+      h("label", null, "Date ", h("input", { type: "date", name: `${node.attributes.name ?? "appt"}-date`, required })),
+      h("label", null, "Time ", h("input", { type: "time", name: `${node.attributes.name ?? "appt"}-time`, required })));
+  }
+  if (node.kind === "table") {
+    const { rows, cols } = tableSize(node);
+    const header = node.attributes.header === "on";
+    const cells = parseTableCells(node.attributes.cells, rows, cols);
+    const bodyRows = header ? cells.slice(1) : cells;
+    return h("table", propsForNode,
+      header ? h("thead", null, h("tr", null, cells[0].map((value, index) => h("th", { key: index }, value)))) : null,
+      h("tbody", null, bodyRows.map((row, rowIndex) => h("tr", { key: rowIndex }, row.map((value, colIndex) => h("td", { key: colIndex }, value))))));
+  }
+  if (node.kind === "richtext") {
+    return h("div", { ...propsForNode, class: `${propsForNode.class} richtext-node`, dangerouslySetInnerHTML: { __html: node.content || "<p></p>" } });
+  }
+  if (node.kind === "strip") {
+    const src = node.attributes.src;
+    const image = src ? mediaDisplayUrl(src) : undefined;
+    const stripStyle: Record<string, string> = { ...node.styles };
+    if (image) { stripStyle.backgroundImage = `url("${image}")`; stripStyle.backgroundSize = "cover"; stripStyle.backgroundPosition = "center"; }
+    return h("div", { ...propsForNode, class: `${propsForNode.class} vw-strip`, style: stripStyle },
+      node.content ? h("span", { class: "vw-strip-text" }, node.content) : null);
+  }
   if (node.kind === "input" && (node.attributes.required !== undefined || node.content)) {
     // A required flag or visible label upgrades the bare input to a label-wrapped field
     // with the same structure the export produces.
@@ -1113,12 +1241,15 @@ function Inspector(props: { element: ElementNode; mutate: (intent: EditIntent) =
   const { element, mutate, onError } = props;
   const style = (property: string, value: string) => void mutate({ type: "set_style", id: element.id, property, value });
   const attr = (name: string, value: string) => void mutate({ type: "set_attribute", id: element.id, name, value });
-  const showText = !["image", "rollover", "iframe", "gallery", "input", "divider", "spacer"].includes(element.kind);
+  const showText = !["image", "rollover", "iframe", "gallery", "input", "divider", "spacer", "calendar", "textbox", "richtext", "dropdown", "datetime", "table", "strip"].includes(element.kind);
   const customBullet = element.styles.listStyleType?.startsWith("\"") ? element.styles.listStyleType.slice(1, -1) : undefined;
+  const [managePanel, setManagePanel] = useState<"events" | "settings" | null>(null);
+  const [stripPicker, setStripPicker] = useState(false);
   return <div class="inspector-content">
     <div class="inspector-section">
       <h3>Content</h3>
       <label class="field-label">Layer name<input value={element.name} onInput={(event) => void mutate({ type: "rename_element", id: element.id, name: event.currentTarget.value })} /></label>
+      <label class="field-label">CSS class<input value={element.attributes.class ?? ""} placeholder="e.g. hero-banner" onInput={(event) => attr("class", event.currentTarget.value)} /></label>
       {showText && <label class="field-label">Text<textarea rows={element.kind === "heading" ? 2 : 4} value={element.content} onInput={(event) => void mutate({ type: "update_content", id: element.id, content: event.currentTarget.value })} /></label>}
       {element.kind === "image" && <><label class="field-label">Image URL<span class="browse-field"><input value={element.attributes.src ?? ""} placeholder="https://… or a local file" onInput={(event) => attr("src", event.currentTarget.value)} /><button class="browse-button" title="Browse for an image file" onClick={() => void browseMediaFile("image", (picked) => attr("src", picked)).catch(onError)}>…</button></span></label><label class="field-label">Alternative text<input value={element.attributes.alt ?? ""} onInput={(event) => attr("alt", event.currentTarget.value)} /></label></>}
       {element.kind === "rollover" && <><label class="field-label">Image URL<span class="browse-field"><input value={element.attributes.src ?? ""} placeholder="https://… or a local file" onInput={(event) => attr("src", event.currentTarget.value)} /><button class="browse-button" title="Browse for an image file" onClick={() => void browseMediaFile("image", (picked) => attr("src", picked)).catch(onError)}>…</button></span></label><label class="field-label">Rollover image URL<span class="browse-field"><input value={element.attributes["data-rollover"] ?? ""} placeholder="https://… (shown on hover)" onInput={(event) => attr("data-rollover", event.currentTarget.value)} /><button class="browse-button" title="Browse for the rollover image file" onClick={() => void browseMediaFile("image", (picked) => attr("data-rollover", picked)).catch(onError)}>…</button></span></label><label class="field-label">Alternative text<input value={element.attributes.alt ?? ""} onInput={(event) => attr("alt", event.currentTarget.value)} /></label></>}
@@ -1128,7 +1259,50 @@ function Inspector(props: { element: ElementNode; mutate: (intent: EditIntent) =
       {(element.kind === "link" || element.kind === "button") && <label class="field-label">Link URL<input value={element.attributes.href ?? ""} placeholder="https://example.com" onInput={(event) => attr("href", event.currentTarget.value)} /></label>}
       {element.kind === "input" && <><label class="field-label">Placeholder<input value={element.attributes.placeholder ?? ""} onInput={(event) => attr("placeholder", event.currentTarget.value)} /></label><label class="field-label">Input type<select value={element.attributes.type ?? "text"} onChange={(event) => attr("type", event.currentTarget.value)}><option>text</option><option>email</option><option>number</option><option>password</option></select></label><label class="field-label">Field label<input value={element.content} placeholder="Shown next to the field" onInput={(event) => void mutate({ type: "update_content", id: element.id, content: event.currentTarget.value })} /></label><label class="check-row"><input type="checkbox" checked={element.attributes.required !== undefined} onChange={(event) => attr("required", event.currentTarget.checked ? "required" : "")} />Required</label></>}
       {(element.kind === "checkbox" || element.kind === "radio") && <><label class="field-label">Field name<input value={element.attributes.name ?? ""} onInput={(event) => attr("name", event.currentTarget.value)} /></label><label class="check-row"><input type="checkbox" checked={element.attributes.checked !== undefined} onChange={(event) => attr("checked", event.currentTarget.checked ? "checked" : "")} />Checked by default</label><label class="check-row"><input type="checkbox" checked={element.attributes.required !== undefined} onChange={(event) => attr("required", event.currentTarget.checked ? "required" : "")} />Required</label></>}
+      {element.kind === "calendar" && <><label class="field-label">Section background<span class="color-field"><input type="color" value={colorValue(element.styles.backgroundColor, "#ffffff")} onInput={(event) => style("backgroundColor", event.currentTarget.value)} /><input value={element.styles.backgroundColor ?? ""} placeholder="#ffffff" onInput={(event) => style("backgroundColor", event.currentTarget.value)} /></span></label><label class="field-label">Strip background<span class="color-field"><input type="color" value={colorValue(element.styles["--vw-calendar-strip"], "#5f65e8")} onInput={(event) => style("--vw-calendar-strip", event.currentTarget.value)} /><input value={element.styles["--vw-calendar-strip"] ?? ""} placeholder="#5f65e8" onInput={(event) => style("--vw-calendar-strip", event.currentTarget.value)} /></span></label><label class="field-label">Title<input value={element.content} placeholder="Event Calendar" onInput={(event) => void mutate({ type: "update_content", id: element.id, content: event.currentTarget.value })} /></label><label class="field-label">Subtitle<input value={element.attributes.subtitle ?? ""} onInput={(event) => attr("subtitle", event.currentTarget.value)} /></label></>}
+      {element.kind === "textbox" && <><label class="field-label">Label<input value={element.content} onInput={(event) => void mutate({ type: "update_content", id: element.id, content: event.currentTarget.value })} /></label><label class="field-label">Placeholder<input value={element.attributes.placeholder ?? ""} onInput={(event) => attr("placeholder", event.currentTarget.value)} /></label><label class="field-label">Field name<input value={element.attributes.name ?? ""} onInput={(event) => attr("name", event.currentTarget.value)} /></label><label class="check-row"><input type="checkbox" checked={element.attributes.required !== undefined} onChange={(event) => attr("required", event.currentTarget.checked ? "required" : "")} />Required</label></>}
+      {element.kind === "dropdown" && <><label class="field-label">Label<input value={element.content} onInput={(event) => void mutate({ type: "update_content", id: element.id, content: event.currentTarget.value })} /></label><label class="field-label">Options (one per line)<textarea rows={4} value={element.attributes.options ?? ""} onInput={(event) => attr("options", event.currentTarget.value)} /></label><label class="field-label">Field name<input value={element.attributes.name ?? ""} onInput={(event) => attr("name", event.currentTarget.value)} /></label><label class="check-row"><input type="checkbox" checked={element.attributes.required !== undefined} onChange={(event) => attr("required", event.currentTarget.checked ? "required" : "")} />Required</label></>}
+      {element.kind === "datetime" && <><label class="field-label">Label<input value={element.content} onInput={(event) => void mutate({ type: "update_content", id: element.id, content: event.currentTarget.value })} /></label><label class="field-label">Field name<input value={element.attributes.name ?? ""} onInput={(event) => attr("name", event.currentTarget.value)} /></label><label class="check-row"><input type="checkbox" checked={element.attributes.required !== undefined} onChange={(event) => attr("required", event.currentTarget.checked ? "required" : "")} />Required</label></>}
+      {element.kind === "strip" && <><label class="field-label">Overlay text<input value={element.content} placeholder="Optional headline over the strip" onInput={(event) => void mutate({ type: "update_content", id: element.id, content: event.currentTarget.value })} /></label><label class="field-label">Height<input value={element.styles.height ?? ""} placeholder="320px" onInput={(event) => style("height", event.currentTarget.value)} /></label></>}
     </div>
+    {element.kind === "calendar" && <div class="inspector-section">
+      <h3>Event Calendar</h3>
+      <p class="panel-note">Manage the content of the Event Calendar here — events show as highlighted days on the calendar, with the title on hover.</p>
+      <div class="manage-row">
+        <button class={managePanel === "events" ? "manage-primary open" : "manage-primary"} onClick={() => setManagePanel(managePanel === "events" ? null : "events")}>Manage Events</button>
+        <button class={managePanel === "settings" ? "manage-ghost open" : "manage-ghost"} onClick={() => setManagePanel(managePanel === "settings" ? null : "settings")}>Settings</button>
+      </div>
+      {managePanel === "events" && <div class="manage-events">
+        {parseCalendarEvents(element.attributes.events).map((event, index) => <div class="manage-event" key={index}>
+          <input type="date" value={event.date} onChange={(e) => attr("events", JSON.stringify(parseCalendarEvents(element.attributes.events).map((item, i) => i === index ? { ...item, date: e.currentTarget.value } : item)))} />
+          <input value={event.title} placeholder="Event title" onInput={(e) => attr("events", JSON.stringify(parseCalendarEvents(element.attributes.events).map((item, i) => i === index ? { ...item, title: e.currentTarget.value } : item)))} />
+          <button class="manage-remove" title="Remove event" onClick={() => attr("events", JSON.stringify(parseCalendarEvents(element.attributes.events).filter((_, i) => i !== index)))}>×</button>
+        </div>)}
+        <button class="manage-add" onClick={() => attr("events", JSON.stringify([...parseCalendarEvents(element.attributes.events), { date: calendarIsoDate(new Date()), title: "" }]))}>＋ Add event</button>
+      </div>}
+      {managePanel === "settings" && <div class="manage-settings">
+        <label class="check-row"><input type="checkbox" checked={element.attributes.weekStart === "monday"} onChange={(event) => attr("weekStart", event.currentTarget.checked ? "monday" : "")} />Start week on Monday</label>
+        <label class="check-row"><input type="checkbox" checked={element.attributes.subtitle !== undefined} onChange={(event) => attr("subtitle", event.currentTarget.checked ? "Click a highlighted day to see what's on." : "")} />Show subtitle</label>
+      </div>}
+    </div>}
+    {element.kind === "table" && <div class="inspector-section">
+      <h3>Table</h3>
+      <TableEditor element={element} attr={attr} />
+    </div>}
+    {element.kind === "richtext" && <div class="inspector-section">
+      <h3>Rich text</h3>
+      <RichTextEditor key={element.id} element={element} mutate={mutate} />
+    </div>}
+    {element.kind === "strip" && <div class="inspector-section">
+      <h3>Strip background</h3>
+      <p class="panel-note">Pick a gallery image from the strip library, upload your own picture, or use an offline gradient.</p>
+      <div class="manage-row">
+        <button class="manage-primary" onClick={() => setStripPicker(true)}>Strip gallery…</button>
+        <button class="manage-ghost" onClick={() => void browseMediaFile("image", (picked) => { attr("src", picked); style("backgroundImage", ""); }).catch(onError)}>Upload image…</button>
+      </div>
+      {(element.attributes.src || element.styles.backgroundImage) && <button class="manage-add" onClick={() => { attr("src", ""); style("backgroundImage", ""); }} style="margin-top: 8px">Remove background image</button>}
+      {stripPicker && <StripPicker attr={attr} style={style} close={() => setStripPicker(false)} />}
+    </div>}
     <div class="inspector-section">
       <h3>Appearance</h3>
       <div class="two-fields">
@@ -1174,6 +1348,89 @@ function Inspector(props: { element: ElementNode; mutate: (intent: EditIntent) =
       </div>
     </div>
     <button class="inspector-link" onClick={() => void mutate({ type: "set_hidden", id: element.id, hidden: !element.hidden })}>{element.hidden ? "Show on page" : "Hide on page"}<span>{element.hidden ? "◉" : "◌"}</span></button>
+  </div>;
+}
+
+function TableEditor(props: { element: ElementNode; attr: (name: string, value: string) => void }) {
+  const { element, attr } = props;
+  const { rows, cols } = tableSize(element);
+  const cells = parseTableCells(element.attributes.cells, rows, cols);
+  const write = (next: string[][]) => attr("cells", JSON.stringify(next));
+  const resize = (nextRows: number, nextCols: number) => {
+    const current = parseTableCells(element.attributes.cells, rows, cols);
+    attr("rows", String(nextRows));
+    attr("cols", String(nextCols));
+    write(Array.from({ length: nextRows }, (_, row) => Array.from({ length: nextCols }, (_, col) => current[row]?.[col] ?? "")));
+  };
+  return <>
+    <div class="two-fields">
+      <label class="field-label">Rows<input type="number" min={1} max={30} value={rows} onChange={(event) => resize(Math.min(30, Math.max(1, parseInt(event.currentTarget.value, 10) || 1)), cols)} /></label>
+      <label class="field-label">Columns<input type="number" min={1} max={10} value={cols} onChange={(event) => resize(rows, Math.min(10, Math.max(1, parseInt(event.currentTarget.value, 10) || 1)))} /></label>
+    </div>
+    <label class="check-row"><input type="checkbox" checked={element.attributes.header === "on"} onChange={(event) => attr("header", event.currentTarget.checked ? "on" : "")} />First row is a header</label>
+    <div class="table-editor">
+      {cells.map((row, rowIndex) => <div class="table-editor-row" key={rowIndex}>
+        {row.map((value, colIndex) => <input key={colIndex} value={value} placeholder={element.attributes.header === "on" && rowIndex === 0 ? `Column ${colIndex + 1}` : ""} onInput={(event) => write(cells.map((tableRow, i) => i === rowIndex ? tableRow.map((cell, j) => j === colIndex ? event.currentTarget.value : cell) : tableRow))} />)}
+      </div>)}
+    </div>
+  </>;
+}
+
+function RichTextEditor(props: { element: ElementNode; mutate: (intent: EditIntent) => Promise<DocumentModel | undefined> }) {
+  const { element, mutate } = props;
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  // Fill the editable box only when switching elements — writing innerHTML on every
+  // keystroke would reset the caret mid-sentence.
+  useEffect(() => { if (boxRef.current) boxRef.current.innerHTML = element.content; }, [element.id]);
+  const commit = () => void mutate({ type: "update_content", id: element.id, content: boxRef.current?.innerHTML ?? "" });
+  const command = (name: string, value?: string) => {
+    boxRef.current?.focus();
+    document.execCommand(name, false, value);
+    commit();
+  };
+  const tools: [string, string, string?][] = [["B", "bold"], ["I", "italic"], ["U", "underline"], ["H2", "formatBlock", "<h2>"], ["H3", "formatBlock", "<h3>"], ["¶", "formatBlock", "<p>"], ["• List", "insertUnorderedList"]];
+  return <>
+    <div class="rich-toolbar">
+      {tools.map(([label, name, value]) => <button key={label} title={label} onMouseDown={(event) => { event.preventDefault(); command(name, value); }}>{label}</button>)}
+    </div>
+    <div class="rich-box" contentEditable ref={boxRef} onInput={commit} spellcheck={false} />
+    <p class="panel-note">Formatting is stored as HTML and exported exactly as shown.</p>
+  </>;
+}
+
+function StripPicker(props: { attr: (name: string, value: string) => void; style: (property: string, value: string) => void; close: () => void }) {
+  const [remote, setRemote] = useState<{ name: string; url: string }[] | null>(null);
+  const [message, setMessage] = useState("Loading the gallery from GitHub…");
+  useEffect(() => {
+    let mounted = true;
+    fetch(`${STRIP_REPO_URL}manifest.json`)
+      .then((response) => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); })
+      .then((data: unknown) => {
+        const list = Array.isArray(data) ? data : (data as { strips?: unknown } | null)?.strips;
+        if (!Array.isArray(list)) throw new Error("manifest format not recognised");
+        const strips = list.filter((item): item is string => typeof item === "string").map((name) => ({ name, url: `${STRIP_REPO_URL}${name}` }));
+        if (!strips.length) throw new Error("manifest has no images");
+        if (mounted) { setRemote(strips); setMessage("Click a picture to apply it to the strip."); }
+      })
+      .catch((cause: unknown) => { if (mounted) setMessage(`Gallery unavailable (${String(cause)}). Upload an image or use a preset below.`); });
+    return () => { mounted = false; };
+  }, []);
+  const applyImage = (url: string) => { props.attr("src", url); props.style("backgroundImage", ""); props.close(); };
+  return <div class="modal-preview-backdrop" onClick={props.close}>
+    <div class="modal-preview strip-picker" onClick={(event) => event.stopPropagation()}>
+      <button class="modal-close" onClick={props.close}>×</button>
+      <span class="eyebrow">STRIP GALLERY</span>
+      <h3>Strip background</h3>
+      <p class="panel-note">{message}</p>
+      {remote && <div class="strip-grid">{remote.map((item) => <button key={item.url} class="strip-thumb" title={item.name} style={{ backgroundImage: `url("${item.url}")` }} onClick={() => applyImage(item.url)} />)}</div>}
+      <p class="panel-note">Offline presets</p>
+      <div class="strip-grid">
+        {STRIP_PRESETS.map((preset) => <button key={preset.name} class="strip-thumb" title={preset.name} style={{ backgroundImage: preset.value }} onClick={() => { props.attr("src", ""); props.style("backgroundImage", preset.value); props.close(); }} />)}
+      </div>
+      <div class="manage-row">
+        <button class="manage-primary" onClick={() => void browseMediaFile("image", (picked) => { props.attr("src", picked); props.style("backgroundImage", ""); props.close(); })}>Upload from computer…</button>
+      </div>
+    </div>
   </div>;
 }
 

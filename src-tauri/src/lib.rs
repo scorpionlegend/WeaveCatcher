@@ -3,6 +3,7 @@ pub mod document;
 pub mod export;
 pub mod ipc;
 pub mod undo;
+pub mod updater;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -14,6 +15,13 @@ pub fn run() {
         // Saves every window's size and position on exit and restores it on the next launch.
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(ipc::AppState::default())
+        .manage(ipc::HelpTopic(std::sync::Mutex::new("tour".to_string())))
+        .setup(|app| {
+            let handle = app.handle().clone();
+            updater::set_enabled(ipc::read_setting(&handle, "autoUpdate").and_then(|value| value.as_bool()).unwrap_or(false));
+            updater::spawn_worker(handle);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             ipc::get_document,
             ipc::new_project,
@@ -27,6 +35,8 @@ pub fn run() {
             ipc::export_project,
             ipc::get_export_preview,
             ipc::open_settings_window,
+            ipc::open_help_window,
+            ipc::get_help_topic,
             ipc::open_project_folder,
             ipc::open_release_notes_window,
             ipc::read_workspace_file,
@@ -34,7 +44,8 @@ pub fn run() {
             ipc::list_quick_locations,
             ipc::open_in_system,
             ipc::load_app_settings,
-            ipc::save_app_setting
+            ipc::save_app_setting,
+            ipc::set_auto_update
         ])
         .run(tauri::generate_context!())
         .expect("failed to run WeaveCatcher");

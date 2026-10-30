@@ -5,6 +5,7 @@ import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { getVersion } from "@tauri-apps/api/app";
 import { setTheme, themePreference, type Theme } from "./theme";
+import { writeAppSetting } from "./appsettings";
 import type { DocumentModel, EditIntent } from "./types";
 
 const THEME_OPTIONS: { value: Theme; title: string; hint: string }[] = [
@@ -21,6 +22,7 @@ export function SettingsApp() {
   const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
   const [updateProgress, setUpdateProgress] = useState("");
   const [appVersion, setAppVersion] = useState("");
+  const [autoUpdate, setAutoUpdateState] = useState<boolean>(() => localStorage.getItem("visionweave-autoupdate") === "true");
   const [theme, setThemeState] = useState<Theme>(() => themePreference());
 
   useEffect(() => {
@@ -77,6 +79,14 @@ export function SettingsApp() {
     setThemeState(next);
   }
 
+  function pickAutoUpdate(next: boolean) {
+    setAutoUpdateState(next);
+    writeAppSetting("visionweave-autoupdate", next);
+    // Flips the backend worker immediately so an update pending right now is
+    // fetched without waiting for the next poll or launch.
+    void invoke("set_auto_update", { enabled: next }).catch(() => {});
+  }
+
   async function checkForUpdates(manual: boolean) {
     if (updateState === "checking" || updateState === "downloading") return;
     setUpdateState("checking");
@@ -131,7 +141,11 @@ export function SettingsApp() {
         {THEME_OPTIONS.map((option) => <button key={option.value} class={theme === option.value ? "chosen" : ""} onClick={() => pickTheme(option.value)}><strong>{option.title}</strong><small>{option.hint}</small></button>)}
       </div>
       <p class="section-label separated">UPDATES</p>
-      {pendingUpdate ? <div class="update-card"><strong>Version {pendingUpdate.version} is available{appVersion ? ` · you have ${appVersion}` : ""}</strong>{pendingUpdate.body && <p class="muted-copy">{pendingUpdate.body.length > 220 ? `${pendingUpdate.body.slice(0, 220)}…` : pendingUpdate.body}</p>}<button class="primary-button update-action" disabled={updateState === "downloading"} onClick={() => void installUpdate()}>{updateState === "downloading" ? updateProgress || "Downloading…" : "⇩ Download & restart"}</button></div> : <div class="update-card"><p class="muted-copy">{updateState === "checking" ? "Checking for updates…" : updateState === "current" ? "Latest version is installed." : "WeaveCatcher checks for updates when it starts."}</p><button class="wide-row" disabled={updateState === "checking"} onClick={() => void checkForUpdates(true)}><span>Check for updates</span><b>↻</b></button></div>}
+      <button class="wide-row auto-row" onClick={() => pickAutoUpdate(!autoUpdate)}>
+        <span class="auto-copy"><strong>Install updates automatically</strong><small>Downloads and restarts WeaveCatcher as soon as a new version is available</small></span>
+        <span class={`switch ${autoUpdate ? "on" : ""}`}><i /></span>
+      </button>
+      {pendingUpdate ? <div class="update-card"><strong>Version {pendingUpdate.version} is available{appVersion ? ` · you have ${appVersion}` : ""}</strong>{pendingUpdate.body && <p class="muted-copy">{pendingUpdate.body.length > 220 ? `${pendingUpdate.body.slice(0, 220)}…` : pendingUpdate.body}</p>}<button class="primary-button update-action" disabled={updateState === "downloading"} onClick={() => void installUpdate()}>{updateState === "downloading" ? updateProgress || "Downloading…" : "⇩ Download & restart"}</button></div> : <div class="update-card"><p class="muted-copy">{updateState === "checking" ? "Checking for updates…" : updateState === "current" ? "Latest version is installed." : autoUpdate ? "Automatic updates are on — new versions install while WeaveCatcher runs." : "WeaveCatcher checks for updates when it starts."}</p><button class="wide-row" disabled={updateState === "checking"} onClick={() => void checkForUpdates(true)}><span>Check for updates</span><b>↻</b></button></div>}
       <button class="wide-row" onClick={() => void openReleaseNotes()}><span>View release — what's new</span><b>▷</b></button>
       <p class="settings-footnote">WeaveCatcher {appVersion || "0.1"} · Project format v1</p>
     </div>
